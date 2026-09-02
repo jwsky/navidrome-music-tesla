@@ -22,9 +22,17 @@ Navidrome 自带的界面在电脑上挺好，塞进车机屏幕就不太行了�
 
 ![设置](docs/settings.png)
 
-车上要用的话，得有个能访问的网址，随便挑一种：
+车上要用的话，得有个能访问的网址。最省事的是直接用这个：
 
-- 传到 GitHub Pages、Cloudflare Pages 这类静态托管，白嫖就够
+**<https://jwsky.github.io/navidrome-music-tesla/>**
+
+在车机浏览器里打开、收藏，就一直能用了。这个地址上跑的就是本仓库的
+`index.html`，GitHub Pages 托管的纯静态页面——**你的服务器地址和账号密码只会
+留在你自己的浏览器里**，页面本身没有后端，也收不到任何东西。
+
+不放心的话完全可以自己放：
+
+- 传到自己的 GitHub Pages、Cloudflare Pages
 - 丢进 Navidrome 所在机器的任意静态目录，跟着一起对外
 - 内网自己的 nginx 里放一个文件
 
