@@ -48,15 +48,20 @@ Navidrome 的 Subsonic 接口默认就带 `Access-Control-Allow-Origin: *`，所
 
 ### YouTube 搜索
 
-填了 key 之后，搜索结果里会一并带上 YouTube 的条目，库里没有的歌也能直接放。
+填了 key 之后，搜索结果里会一并带上 YouTube 的条目，库里没有的歌也能直接点开就放。
 
-key 自己申请，免费：
+播放的是解析出来的音频直链，还是走播放器自己的 `<audio>`，**不嵌 YouTube 播放器**——
+进度条、切歌、快捷键这些跟本地歌曲行为完全一致。
 
-1. 打开 [Google Cloud 控制台](https://console.cloud.google.com/apis/library/youtube.googleapis.com)，启用 **YouTube Data API v3**
-2. 左边「凭据」→ 创建凭据 → API 密钥
-3. 把密钥填进设置里的 YouTube 那一栏
+要两个跑在 RapidAPI 上的第三方 API，都有免费档，去 RapidAPI 上**按名字搜**订阅就行：
 
-免费额度每天 10000 单位，一次搜索算 100 单位，也就是每天 100 次搜索，个人用绰绰有余。播放走 YouTube 官方播放器，不额外消耗额度。
+- **yt-api** —— 搜索
+- **youtube-mp36** —— 把视频转成可直接播放的音频链接
+
+两个共用同一个 RapidAPI key（账号级的），但**两个都要各自订阅**。key 可以填多个、
+逗号隔开，会随机轮着用，免费档撞速率限制时管用。
+
+完整步骤和排错见 [docs/youtube.md](docs/youtube.md)。
 
 ### AI 搜索纠错
 

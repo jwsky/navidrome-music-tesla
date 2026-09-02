@@ -255,7 +255,6 @@ button{cursor:pointer;border:0;background:none}
   </div>
 </div>
 
-<div id="ytHost" style="position:fixed;left:-9999px;top:-9999px;width:320px;height:180px"></div>
 <div id="toast"></div>
 
 <div class="mask" id="mask">
@@ -280,12 +279,13 @@ button{cursor:pointer;border:0;background:none}
     <div class="group">
       <h3>YouTube 搜索 <span class="badge">可选</span></h3>
       <p class="hint">
-        填了 key 才会在搜索结果里带上 YouTube。用的是官方 YouTube Data API v3，
-        在 <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">Google Cloud 控制台</a>
-        启用 “YouTube Data API v3”，再到「凭据」建一个 API 密钥即可，免费额度每天 10000 单位
-        （一次搜索 100 单位，够用了）。播放走 YouTube 官方播放器，不额外消耗额度。
+        填了 key 才会在搜索结果里带上 YouTube，库里没有的歌也能直接放。
+        去 RapidAPI 上搜这两个 API 订阅一下（都有免费档），用同一个 key：
+        <b>yt-api</b>（搜索）和 <b>youtube-mp36</b>（取音频）。
+        免费档有速率上限，key 可以填多个，用逗号隔开，会随机轮着用。
+        详细步骤见仓库里的 youtube.md。
       </p>
-      <div class="field"><label>YouTube Data API Key</label>
+      <div class="field"><label>RapidAPI Key（可填多个，逗号分隔）</label>
         <input id="cfgYt" type="password" placeholder="留空 = 不启用" spellcheck="false"></div>
     </div>
 
@@ -449,23 +449,22 @@ let libLoaded = false;
 let idx = -1;               // 当前播放下标
 let shuffled = true;        // 默认随机，开车时不用挑
 let seq = 0;                // 搜索序号，防止慢响应覆盖新结果
-let ytPlayer = null, ytOn = false;   // ytOn = 当前这首走 YouTube 播放器
 
 const cur = () => list[idx] || null;
 const keyOf = it => it ? (it.src || '') + '|' + (it.id || it.videoId || '') : '';
 
-/* 两种播放引擎（本地音频 / YouTube 播放器）统一成一组接口 */
+/* 所有来源最终都落到同一个 <audio>：本地是 Subsonic 的 stream，
+   YouTube 和自建后端各自解析出直链。没有第二套播放器。 */
 const P = {
-  get time() { return ytOn ? (ytPlayer && ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0) : audio.currentTime; },
+  get time() { return audio.currentTime; },
   get dur()  {
-    if (ytOn) return (ytPlayer && ytPlayer.getDuration ? ytPlayer.getDuration() : 0) || 0;
     if (isFinite(audio.duration) && audio.duration) return audio.duration;
     const c = cur(); return (c && Number(c.duration)) || 0;
   },
-  get paused() { return ytOn ? !(ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === 1) : audio.paused; },
-  play()  { ytOn ? ytPlayer && ytPlayer.playVideo()  : audio.play().catch(() => {}); },
-  pause() { ytOn ? ytPlayer && ytPlayer.pauseVideo() : audio.pause(); },
-  seek(t) { ytOn ? ytPlayer && ytPlayer.seekTo(t, true) : (audio.currentTime = t); },
+  get paused() { return audio.paused; },
+  play()  { audio.play().catch(() => {}); },
+  pause() { audio.pause(); },
+  seek(t) { audio.currentTime = t; },
 };
 
 /* ---------- 背景：封面高斯模糊，两层交叉淡入 ---------- */
@@ -583,6 +582,7 @@ function markPlaying() {
 /* ---------- 取流地址 ---------- */
 async function streamUrl(it) {
   if (it.src === 'lib') return sub('stream', 'id=' + enc(it.id) + '&format=raw');
+  if (it.src === 'yt')  return ytStream(it.videoId);
   if (it.src === 'ext') {
     const r = await fetch(extBase() + '/play?' + new URLSearchParams(it.play || { id: it.id })).then(r => r.json());
     if (!r || !r.url) throw new Error('外部后端没返回播放地址');
@@ -601,10 +601,8 @@ async function play(i) {
   setBackground(coverOf(it, 600));
   loadLyrics(it);
 
-  if (it.src === 'yt') { ytOn = true; audio.pause(); return playYouTube(it); }
-
-  ytOn = false;
-  if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+  // YouTube 要先换一个直链，慢的时候得让用户知道在干嘛
+  if (it.src === 'yt') toast('正在取 YouTube 音频…', 8000);
   try {
     audio.src = await streamUrl(it);
     audio.load();
@@ -632,42 +630,6 @@ audio.addEventListener('ended', () => next());
 
 function next() { if (list.length) play((idx + 1) % list.length); }
 function prev() { if (list.length) play((idx - 1 + list.length) % list.length); }
-
-/* ---------- YouTube 播放：走官方 IFrame 播放器 ----------
-   浏览器里没法把 YouTube 解成直链，所以播放交给官方播放器（藏在屏幕外，只要声音）。
-   这条路不消耗 Data API 配额，配额只花在搜索上。 */
-let ytApiPromise = null;
-function ytApi() {
-  if (ytApiPromise) return ytApiPromise;
-  ytApiPromise = new Promise((resolve, reject) => {
-    if (window.YT && window.YT.Player) return resolve();
-    window.onYouTubeIframeAPIReady = resolve;
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
-    s.onerror = () => reject(new Error('加载 YouTube 播放器失败（网络不通？）'));
-    document.head.appendChild(s);
-    setTimeout(() => reject(new Error('加载 YouTube 播放器超时')), 15000);
-  }).then(() => new Promise(resolve => {
-    if (ytPlayer) return resolve();
-    ytPlayer = new YT.Player('ytHost', {
-      height: '180', width: '320',
-      playerVars: { playsinline: 1, controls: 0, disablekb: 1 },
-      events: {
-        onReady: () => resolve(),
-        onStateChange: e => {
-          if (e.data === YT.PlayerState.ENDED) next();
-          if (ytOn) setPlayIcon(e.data === YT.PlayerState.PLAYING);
-        },
-        onError: () => toast('这个视频不让外部播放，换一条试试'),
-      },
-    });
-  }));
-  return ytApiPromise;
-}
-async function playYouTube(it) {
-  try { await ytApi(); ytPlayer.loadVideoById(it.videoId); ytPlayer.playVideo(); setPlayIcon(true); }
-  catch (e) { toast(e.message); }
-}
 
 /* ---------- 歌词 ---------- */
 let lyrics = [], lineIdx = -1;
@@ -858,19 +820,52 @@ async function searchLocal(q) {
   return ((b.searchResult3 && b.searchResult3.song) || []).map(fromSubsonic);
 }
 
-/* YouTube Data API v3。只搜索，不取流——播放交给官方播放器。 */
+/* ---------- YouTube（RapidAPI，浏览器直连）----------
+   两个接口都带 CORS，预检也放行 x-rapidapi-key，所以不需要任何中转层。
+   搜索走 yt-api，取流走 youtube-mp36 换一个 mp3 直链，直接塞进 <audio>，
+   不嵌播放器。key 可以填多个（逗号或换行分隔），每次随机挑一个——
+   免费档有硬性速率上限，多备几个能少撞墙。 */
+const ytKeys = () => (cfg.yt || '').split(/[\s,]+/).filter(Boolean);
+
+async function rapid(host, path) {
+  const keys = ytKeys();
+  if (!keys.length) throw new Error('还没填 RapidAPI key');
+  const key = keys[Math.floor(Math.random() * keys.length)];
+  const r = await fetch('https://' + host + path, {
+    headers: { 'x-rapidapi-host': host, 'x-rapidapi-key': key },
+  });
+  const d = await r.json().catch(() => null);
+  if (!r.ok) throw new Error('RapidAPI ' + r.status + (d && d.message ? '：' + String(d.message).slice(0, 60) : ''));
+  return d || {};
+}
+
+const hmsToSec = t => {
+  const parts = String(t || '').split(':').map(Number);
+  return parts.length && !parts.some(isNaN) ? parts.reduce((a, b) => a * 60 + b, 0) : 0;
+};
+
 async function searchYouTube(q) {
-  if (!cfg.yt) return [];
-  const url = 'https://www.googleapis.com/youtube/v3/search' +
-    '?part=snippet&type=video&videoCategoryId=10&maxResults=12&q=' + enc(q) + '&key=' + enc(cfg.yt);
-  const d = await fetch(url).then(r => r.json());
-  if (d.error) throw new Error('YouTube：' + ((d.error.errors && d.error.errors[0] && d.error.errors[0].reason) || d.error.message || '请求被拒'));
-  return (d.items || []).filter(v => v.id && v.id.videoId).map(v => ({
-    src: 'yt', videoId: v.id.videoId,
-    title: (v.snippet.title || '').replace(/&(amp|quot|#39);/g, m => ({'&amp;':'&','&quot;':'"','&#39;':"'"}[m] || m)),
-    artist: v.snippet.channelTitle || '',
-    cover: ((v.snippet.thumbnails || {}).medium || (v.snippet.thumbnails || {}).default || {}).url || '',
+  if (!ytKeys().length) return [];
+  const d = await rapid('yt-api.p.rapidapi.com', '/search?query=' + enc(q));
+  return ((d && d.data) || []).filter(v => v.type === 'video' && v.videoId).map(v => ({
+    src: 'yt', videoId: v.videoId,
+    title: v.title || '', artist: v.channelTitle || '',
+    duration: hmsToSec(v.lengthText),
+    cover: (v.thumbnail && v.thumbnail[0] && v.thumbnail[0].url) || '',
   }));
+}
+
+/* 换直链。这个接口按需转码，第一次点某首歌可能先返回 processing，等几秒再问一次。 */
+async function ytStream(videoId, tries) {
+  tries = tries || 4;
+  for (let i = 0; i < tries; i++) {
+    const d = await rapid('youtube-mp36.p.rapidapi.com', '/dl?id=' + enc(videoId));
+    if (d.status === 'ok' && d.link) return d.link;
+    if (d.status !== 'processing') throw new Error('YouTube：' + (d.msg || d.status || '取流失败'));
+    toast('YouTube 正在转码，再等等…', 4000);
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  throw new Error('YouTube 转码太久了，换一条试试');
 }
 
 /* 自建后端（可选）。约定见 docs/backend-api.md。 */
@@ -936,7 +931,7 @@ async function doSearch(raw) {
   // ③ 插件并行，各自失败互不影响
   const jobs = [];
   terms.forEach(t => {
-    if (cfg.yt) jobs.push(searchYouTube(t).then(push).catch(e => toast(e.message)));
+    if (ytKeys().length) jobs.push(searchYouTube(t).then(push).catch(e => toast(e.message)));
     if (extBase()) jobs.push(searchExt(t).then(push).catch(() => {}));
   });
   await Promise.all(jobs);
