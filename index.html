@@ -545,6 +545,8 @@ function setList(items, title) {
 function render() {
   $('listCount').textContent = list.length ? list.length + ' 首' : '';
   const box = $('songlist');
+  // 旧行的 img 还被 observer 攥着，不断开的话反复搜索会越积越多
+  if (coverIO) coverIO.disconnect();
   if (!list.length) { box.innerHTML = ''; return; }
   const frag = document.createDocumentFragment();
   list.forEach((it, i) => {
