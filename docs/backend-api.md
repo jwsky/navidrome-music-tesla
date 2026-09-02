@@ -1,60 +1,66 @@
-# 自建搜索后端接口约定
+# Self-hosted search backend contract
 
-设置里填了「自建搜索后端」之后，前端会往这个地址发三种请求。三个都实现才算完整，
-但只实现 `/search` + `/play` 也能用（只是那些歌没有歌词）。
+[English](backend-api.md) · [中文](backend-api.zh-CN.md)
 
-请求全是 `GET`，返回 `application/json`。因为是浏览器直连，**服务端必须带上 CORS 头**：
+When a URL is configured under **Settings → Self-hosted search backend**, the client issues
+three request types against it. Implementing all three is the complete integration;
+implementing only `/search` and `/play` also works, with those tracks simply having no
+lyrics.
+
+All requests are `GET` and must return `application/json`. Because the browser calls the
+service directly, **the server must send CORS headers**:
 
 ```
 Access-Control-Allow-Origin: *
 ```
 
-假设你填的地址是 `https://example.com/api`，那么：
+The examples below assume the configured base URL is `https://example.com/api`.
 
-## GET /search?q=关键词
+## GET /search?q=&lt;query&gt;
 
 ```jsonc
 {
   "results": [
     {
       "id": "12345",
-      "title": "歌名",
-      "artist": "歌手",
-      "duration": 269,           // 秒，可选
-      "cover": "https://…/x.jpg",// 可选，没有就用内置占位图
+      "title": "Track title",
+      "artist": "Artist",
+      "duration": 269,             // seconds, optional
+      "cover": "https://…/x.jpg",  // optional; a built-in placeholder is used when absent
       "play": { "id": "12345", "platform": "xxx" }
-      // play 是个自由字典，前端会原样拼进 /play 和 /lyric 的 query。
-      // 不给的话默认用 {id: id}。
+      // `play` is an opaque dictionary. The client appends it verbatim to the query string
+      // of /play and /lyric. When omitted it defaults to {id: id}.
     }
   ]
 }
 ```
 
-## GET /play?<play 里的键值>
+## GET /play?&lt;keys from `play`&gt;
 
-返回一个浏览器能直接塞进 `<audio>` 的地址：
+Returns an address the browser can assign directly to an `<audio>` element:
 
 ```jsonc
 { "url": "https://…/song.mp3" }
 ```
 
-这个地址所在的服务器也要允许跨域播放（或者干脆由你自己中转）。
+The host serving that URL must also permit cross-origin playback, or the backend should
+proxy the stream itself.
 
-## GET /lyric?<play 里的键值>
+## GET /lyric?&lt;keys from `play`&gt;
 
 ```jsonc
 {
   "lines": [
     {
-      "start": 21500,          // 该行开始时间，毫秒
-      "value": "原文歌词",
-      "roma":  "luo ma yin",   // 可选，罗马音/音译
-      "trans": "中文翻译",      // 可选
-      "chars": [               // 可选，原文的逐字时间轴
+      "start": 21500,            // line start time, milliseconds
+      "value": "original text",
+      "roma":  "romanisation",   // optional
+      "trans": "translation",    // optional
+      "chars": [                 // optional, per-character timing for the original text
         { "o": 0,   "d": 260, "c": "原" },
         { "o": 260, "d": 240, "c": "文" }
       ],
-      "romaChars": [           // 可选，罗马音的逐字时间轴
+      "romaChars": [             // optional, per-character timing for the romanisation
         { "o": 0,   "d": 300, "c": "luo " },
         { "o": 300, "d": 300, "c": "ma " }
       ]
@@ -63,12 +69,14 @@ Access-Control-Allow-Origin: *
 }
 ```
 
-`chars` / `romaChars` 里的 `o` 是**相对该行 `start` 的偏移**（毫秒），`d` 是这个字唱多久。
-给了就有逐字扫光，不给就退回整行高亮。
+In `chars` and `romaChars`, `o` is the offset **relative to that line's `start`** in
+milliseconds and `d` is the duration of the character. When present, the client sweeps the
+line character by character; when absent it falls back to highlighting the whole line.
 
-两条都给的时候，扫光跑在 `romaChars` 上——因为带罗马音时罗马音才是最大的那一行。
+If both arrays are supplied the sweep follows `romaChars`, because the romanisation is
+rendered as the primary line whenever it exists.
 
-## 只要不返回就当没有
+## Failure handling
 
-任何一个接口挂了、超时了、返回格式不对，前端只会跳过这一部分，
-本地曲库的搜索和播放不受影响。
+If any endpoint is unreachable, times out or returns an unexpected shape, the client skips
+that source only. Local library search and playback are unaffected.

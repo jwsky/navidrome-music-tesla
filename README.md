@@ -1,106 +1,281 @@
 # navidrome-music-tesla
 
-在特斯拉车机浏览器里用的 Navidrome 前端。**一个 HTML 文件**，打开就能用——不装东西、不起服务、不用构建。
+[English](README.md) · [中文](README.zh-CN.md)
 
-![播放界面](docs/player.png)
+A single-file web client for [Navidrome](https://www.navidrome.org/), built for in-car
+browsers. One HTML file — no build step, no server-side component, no dependencies.
 
-## 为什么写这个
+![Player](docs/player.png)
 
-Navidrome 自带的界面在电脑上挺好，塞进车机屏幕就不太行了：按钮小、行距密、开车时余光扫一眼根本点不准，歌词也只是显示在那儿，跟不上。
+## Overview
 
-我想要的其实很简单——上车、扫一眼、点一下、能跟着唱。找了一圈没有合适的，就自己写了一个，在自己车上跑了大半年。
+- **Single file.** `index.html` contains all markup, styles and scripts. Nothing to compile
+  and nothing to install.
+- **No backend.** The page talks to your Navidrome server directly from the browser over the
+  Subsonic API.
+- **Designed for a car screen.** Large touch targets, tall list rows, a centred lyrics pane
+  that scrolls itself, and album art used as the background.
+- **Optional plugins** for YouTube search, AI query correction and a self-hosted search
+  backend. All are disabled by default and issue no requests until configured.
+- **Not tied to Tesla.** It was developed and tuned against the Tesla browser, but nothing in
+  it is vehicle-specific. Any in-car, embedded or kiosk browser that meets the requirements
+  below will run it — Android Automotive head units, aftermarket units, tablets mounted in a
+  dash, or an ordinary desktop browser.
+- **Light enough for weak hardware.** A single ~48 KB document, no framework and no runtime
+  dependencies. See [Performance](#performance).
 
-所以这个界面是按「手指 + 余光」来做的：按钮做大，列表行拉高，正在唱的那句歌词放大居中、自动滚到屏幕中间，专辑封面拉成背景。横屏竖屏都试过。
+## Why a separate client
 
-## 用起来
+Navidrome ships a capable web UI, but it is laid out for desktop and phone use. On an in-car
+display the controls are small relative to the viewing distance, list rows are dense, and
+lyrics are presented as static text rather than as something that can be followed while
+driving. This client trades browsing depth for legibility: fewer controls, larger hit areas,
+and a lyrics view that tracks playback.
 
-1. 下载 [`index.html`](index.html)（就这一个文件，50KB 左右）
-2. 浏览器打开
-3. 右上角齿轮 → 填 Navidrome 地址、用户名、密码 → 保存
+## Requirements
 
-没了。
+- A Navidrome server reachable from the car. The Subsonic API is enabled by default.
+- A browser supporting `fetch`, `clip-path` and `IntersectionObserver`. Tested on Chrome,
+  Edge, Safari and the Tesla in-car browser.
+- HTTPS is recommended. A page served over HTTPS cannot call a plain-HTTP Navidrome server;
+  browsers block that as mixed content.
 
-![设置](docs/settings.png)
+## Installation
 
-车上要用的话，得有个能访问的网址。最省事的是直接用这个：
+### Option 1 — use the hosted build
 
-**<https://jwsky.github.io/navidrome-music-tesla/>**
+<https://jwsky.github.io/navidrome-music-tesla/>
 
-在车机浏览器里打开、收藏，就一直能用了。这个地址上跑的就是本仓库的
-`index.html`，GitHub Pages 托管的纯静态页面——**你的服务器地址和账号密码只会
-留在你自己的浏览器里**，页面本身没有后端，也收不到任何东西。
+Open it in the car's browser and bookmark it. This is the `index.html` from this repository
+served as a static page by GitHub Pages. Your server address and credentials are stored in
+your own browser and are never transmitted to the host — the page has no backend to send
+them to.
 
-不放心的话完全可以自己放：
+### Option 2 — host it yourself
 
-- 传到自己的 GitHub Pages、Cloudflare Pages
-- 丢进 Navidrome 所在机器的任意静态目录，跟着一起对外
-- 内网自己的 nginx 里放一个文件
+Download [`index.html`](index.html) and serve it from anywhere static:
 
-账号密码存在浏览器 localStorage，只留在这台设备上，不会往任何地方传。用的是 Subsonic 的 salt+token 认证，每次请求现算一个随机 salt，明文密码不会出现在 URL 里。
+- GitHub Pages, Cloudflare Pages, Netlify, or any object storage with static hosting
+- Any directory served by the web server already running on the Navidrome host
+- An internal nginx or Caddy instance
 
-### 关于跨域
+The file can also be opened directly from disk (`file://`), though some browsers restrict
+`localStorage` in that context, which means settings may not persist.
 
-Navidrome 的 Subsonic 接口默认就带 `Access-Control-Allow-Origin: *`，所以页面放在哪个域名下都能直连你自己的服务器，**不需要反向代理，也不需要中间层**。这也是这个项目能只有一个 HTML 的原因。
+## Configuration
 
-## 可选功能
+Open the settings panel with the gear icon in the top-right corner.
 
-下面几个默认都是关的，设置里不填就当不存在，不会有任何请求。
+![Settings](docs/settings.png)
 
-### YouTube 搜索
+All values are stored in `localStorage` on the device that entered them. There is no sync,
+no account and no telemetry.
 
-填了 key 之后，搜索结果里会一并带上 YouTube 的条目，库里没有的歌也能直接点开就放。
+### Navidrome (required)
 
-播放的是解析出来的音频直链，还是走播放器自己的 `<audio>`，**不嵌 YouTube 播放器**——
-进度条、切歌、快捷键这些跟本地歌曲行为完全一致。
+| Field | Notes |
+| --- | --- |
+| Server URL | Scheme and host, e.g. `https://music.example.com`. The `/rest` path is appended automatically; a trailing `/rest` is also accepted. |
+| Username | Your Navidrome username. |
+| Password | Your Navidrome password. |
 
-要两个跑在 RapidAPI 上的第三方 API，都有免费档，去 RapidAPI 上**按名字搜**订阅就行：
+Use **Test connection** to verify the settings before saving. On success it reports the
+server type and version.
 
-- **yt-api** —— 搜索
-- **youtube-mp36** —— 把视频转成可直接播放的音频链接
+Authentication uses the Subsonic salt-and-token scheme: a random salt is generated for every
+request and only `md5(password + salt)` is transmitted. The plaintext password is never put
+in a URL, but it is kept in `localStorage` so that new salts can be derived. Treat any device
+where you enter it as trusted.
 
-两个共用同一个 RapidAPI key（账号级的），但**两个都要各自订阅**。key 可以填多个、
-逗号隔开，会随机轮着用，免费档撞速率限制时管用。
+#### Cross-origin requests
 
-完整步骤和排错见 [docs/youtube.md](docs/youtube.md)。
+Navidrome returns `Access-Control-Allow-Origin: *` on the Subsonic API. That is what makes a
+backend-free client possible: the page may be served from any origin and still call your
+server directly. If Navidrome sits behind your own reverse proxy, make sure the proxy does
+not strip or override that header.
 
-### AI 搜索纠错
+### YouTube search (optional)
 
-语音或者手输很容易出同音字——「告白气球」打成「告白汽球」，搜出来是空的。开了这个之后，搜索会先让模型把词顺一遍，然后**原词和纠正词的结果都会列出来**，不替换、不丢东西，模型猜错了你也还能看到原来的结果。
+When configured, search results include YouTube entries alongside your library, so tracks
+that are not in your collection can be played from the same interface. Audio is resolved to a
+direct URL and played through the same `<audio>` element as local files — no embedded player
+is used, so the progress bar, track skipping and keyboard shortcuts behave identically.
 
-任何兼容 OpenAI `/chat/completions` 的服务都行，填接口地址、key、模型名即可。不填就完全不启用。
+This plugin uses two third-party APIs hosted on RapidAPI, both with a free tier:
 
-### 自建搜索后端
+| API name | Purpose |
+| --- | --- |
+| `yt-api` | Search; returns the result list |
+| `youtube-mp36` | Resolves a video to a playable audio URL |
 
-如果你自己跑了别的搜索/取流服务，把地址填进去就能接进来，接口约定见 [docs/backend-api.md](docs/backend-api.md)。
+Links are deliberately omitted — several similarly named APIs exist. Search for them by name
+on RapidAPI and check the provider and current free-tier limits yourself.
 
-## 歌词
+**Setup**
 
-Navidrome 支持内嵌歌词，也支持把 `.lrc` 放在歌曲同目录，带时间戳的会自动跟随、逐行滚动。
+1. Create a RapidAPI account.
+2. Search for `yt-api`, open it and subscribe to the free plan.
+3. Search for `youtube-mp36`, open it and subscribe to the free plan.
+4. On either API page, copy the `X-RapidAPI-Key` value shown in the code samples.
+5. Paste it into **Settings → YouTube search** and save.
 
-如果歌词还带**逐字时间**（一般来自外部后端），会有逐字扫光效果：
+The RapidAPI key is account-level, so a single key covers both APIs — but **each API must be
+subscribed to separately**, otherwise calls are rejected with HTTP 403.
 
-![歌词](docs/lyrics.png)
+**Multiple keys.** Free plans are rate limited. Several keys may be entered, separated by
+commas or newlines; one is chosen at random per request.
 
-上面这张图里同时有三层——原文、罗马音、中文翻译。带罗马音的时候字号层级是反过来的：罗马音最大（跟着唱的是它），原文缩小放在上面只作对照。扫光也跑在罗马音那一层。
+```
+key-A, key-B
+```
 
-歌词长了会自动折行，扫光会跟着一行行往下推。
+**Behaviour.** Library results are rendered first and remain visible while the YouTube
+request is in flight. The resolver transcodes on demand, so the first play of a given track
+may return a "processing" state; the interface reports this and retries for a few seconds.
+YouTube entries have no lyrics — the artwork and title are shown instead.
 
-## 特斯拉上的一些实际情况
+**Troubleshooting**
 
-- 车机浏览器是 Chromium 内核，ES6 那些都没问题
-- **列表封面是滚到眼前才加载的**。这不是优化洁癖：曲库几百行，一次性把封面全请求出去会把连接占满，点歌之后音频流要排队十几秒才出声（实测点完歌 12 秒才响，改完 5 秒内出声）
-- 缩略图只取 96px，背景才取大图
-- 逐字扫光用 `clip-path` 做，GPU 合成，不触发重排，车机这种弱机也扛得住
-- 车子在行驶状态下屏幕不给操作，这是特斯拉的限制，不是这个页面的问题
+| Message | Cause |
+| --- | --- |
+| `还没填 RapidAPI key` | The field is empty. |
+| `RapidAPI 403` | Not subscribed to that API, or the key is wrong. Both APIs must be subscribed. |
+| `RapidAPI 429` | Rate limit reached. Wait, or configure additional keys. |
+| `YouTube 转码太久了` | The resolver stayed in the processing state. Try another result or retry later. |
+| No YouTube results, no error | The key is empty, or the query genuinely returned nothing. |
 
-## 快捷键
+**Compliance.** This plugin is disabled by default and ships with no credentials. It is
+intended for personal use. The APIs it calls are operated by third parties with no
+affiliation to this project or to YouTube, and downloading or extracting audio may conflict
+with the YouTube Terms of Service or with local law depending on your jurisdiction and how
+you use it. Enabling the plugin and supplying a key is your decision, and ensuring that your
+use is lawful and compliant is your responsibility. This project hosts, caches, proxies and
+redistributes no content whatsoever; all requests are made directly by your browser using
+credentials you supply.
 
-在有键盘的设备上：空格播放/暂停，左右箭头切上一首/下一首。
+### AI query correction (optional)
 
-## 兼容性
+Voice input and quick typing produce homophone errors — in Chinese, for example, 告白气球
+easily becomes 告白汽球, which matches nothing. With this enabled, the query is first passed
+to a language model for correction, and **results for both the original and the corrected
+query are shown**. Nothing is replaced or discarded, so a bad correction does not cost you
+the original results.
 
-只要浏览器支持 `fetch`、`clip-path`、`IntersectionObserver` 就行。Chrome / Edge / Safari / 特斯拉车机浏览器都测过。
+| Field | Notes |
+| --- | --- |
+| Enable | Off by default. |
+| Endpoint | Any service exposing an OpenAI-compatible `/chat/completions`, e.g. `https://api.openai.com/v1`. |
+| API key | Sent as `Authorization: Bearer`. |
+| Model | Model identifier, e.g. `gpt-4o-mini`. |
+
+One short completion is issued per search, capped at 40 output tokens. The key is stored in
+`localStorage` and sent directly from the browser to the endpoint you configured.
+
+### Self-hosted search backend (optional)
+
+An additional source can be attached by pointing this field at a service that implements
+three endpoints. See [docs/backend-api.md](docs/backend-api.md) for the contract. If a
+backend supplies word-level lyric timings, the karaoke sweep described below is used.
+
+## Lyrics
+
+Navidrome serves embedded lyrics as well as `.lrc` files placed alongside the audio. Timed
+lyrics are followed automatically: the active line is enlarged, centred and scrolled into
+view.
+
+![Lyrics](docs/lyrics.png)
+
+When a source provides word-level timings, the active line is swept character by character.
+Three layers are rendered per line — original text, romanisation and translation. If a
+romanisation is present the type scale is inverted: the romanisation becomes the primary
+line, the original is reduced to a reference line above it, and the sweep follows the
+romanisation. Long lines wrap, and the sweep advances across the wrapped rows.
+
+## Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| Space | Play / pause |
+| → | Next track |
+| ← | Previous track |
+
+## Performance
+
+In-car browsers generally run on modest hardware and an unreliable connection, so the client
+is built to stay cheap at runtime:
+
+- One document, roughly 48 KB, parsed in a single pass. No framework, no bundler runtime, no
+  external requests for code or fonts — the only network traffic is your own server's API,
+  cover art and audio.
+- The DOM stays small. Only the current lyric line carries the two-layer sweep markup;
+  every other line is plain text.
+- The karaoke sweep animates `clip-path` on a composited layer and reads no layout during
+  playback — all glyph measurements are taken once when the line becomes active.
+- Cover art is fetched only for rows scrolled into view, at 96 px. See the note below on why
+  this matters more than it looks.
+- Progress and lyric tracking run on a single 200 ms interval; the per-frame loop exists only
+  while a swept line is actually playing.
+
+## Notes on in-car browsers
+
+- The Tesla browser is Chromium-based; ES6 and modern CSS are available. Other Chromium- or
+  WebKit-based head units behave the same way.
+- **Cover art is loaded on demand.** A library view can contain hundreds of rows, and
+  requesting every thumbnail at once saturates the connection pool and starves the audio
+  stream. Measured on a 500-track library: 12 seconds from tapping a track to audio starting.
+  With an `IntersectionObserver` loading only visible rows, the same action starts audio in
+  under 5 seconds. `loading="lazy"` alone was not sufficient.
+- List thumbnails are requested at 96 px; the full-size image is fetched only for the
+  background.
+- The karaoke sweep is drawn with `clip-path` on a composited layer, so it does not trigger
+  layout on every frame.
+- Many vehicles, Tesla included, disable screen interaction while moving. That is a platform
+  restriction, not a limitation of this page.
+
+## Privacy
+
+There is no backend, no analytics and no outbound reporting. Every request originates from
+your browser and goes to a destination you configured: your Navidrome server, and — only if
+you enable them — the third-party endpoints for the optional plugins. Settings, including
+credentials and API keys, are held in `localStorage` on that device only.
+
+## Browser support
+
+Chrome, Edge, Safari and the Tesla in-car browser have been tested directly. Any reasonably
+current Chromium- or WebKit-based browser should work; the requirements are `fetch`,
+`clip-path` and `IntersectionObserver`, and the client degrades to eager image loading where
+`IntersectionObserver` is unavailable.
+
+## Roadmap
+
+The following is not implemented yet and is listed here to describe the intended direction.
+
+### Remote voice control via Apple Shortcuts
+
+The goal is to request a track with Siri: an Apple Shortcut forwards the transcribed
+utterance to the player, which searches for it and starts playback without anyone touching
+the screen.
+
+The blocker is **parsing natural speech**. What arrives is a full sentence such as
+"play Sunny Day by Jay Chou" rather than a search term, so a model is needed to extract the
+title and artist, strip filler words, and repair homophone errors introduced by speech
+recognition. The implementation is expected to reuse the existing AI correction plugin, with
+the [self-hosted backend](docs/backend-api.md) acting as the endpoint the Shortcut posts to.
+
+Until then, the on-screen search box covers the same ground.
+
+## Contributing
+
+Issues and pull requests are welcome. The entire application is `index.html`; there is no
+build tooling to set up — edit the file and reload the page.
+
+## Disclaimer
+
+This project is provided as-is under the MIT licence, with no warranty. It is a client for a
+music server that you operate. You are responsible for holding the necessary rights to the
+content you access through it and for ensuring that your use of any optional third-party
+integration complies with that provider's terms and with the law in your jurisdiction.
 
 ## License
 
-MIT
+[MIT](LICENSE)
