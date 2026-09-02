@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<title>Navidrome Music · Tesla</title>
+<style>
+:root{
+  --bg:#0b0d10;
+  --fg:#eef2f5;
+  --dim:#9aa6ad;
+  --dimmer:#6d7a82;
+  --line:rgba(255,255,255,.10);
+  --card:rgba(255,255,255,.06);
+  --card-hi:rgba(255,255,255,.13);
+  --accent:#5ac8fa;
+  --radius:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--fg);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  overflow:hidden;
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+
+/* ---------- 背景：封面大图高斯模糊，换歌时交叉淡入 ---------- */
+.bg-layer{position:fixed;inset:0;background-size:cover;background-position:center;
+  filter:blur(90px) saturate(1.5);transform:scale(1.25);opacity:0;
+  transition:opacity .6s ease;z-index:0;pointer-events:none}
+.bg-shade{position:fixed;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,.72));z-index:1;pointer-events:none}
+
+/* ---------- 骨架 ---------- */
+.app{position:relative;z-index:2;display:flex;flex-direction:column;height:100%}
+.topbar{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px;gap:12px;flex:0 0 auto}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:.02em;
+  color:rgba(255,255,255,.86);font-size:15px}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 12px var(--accent);flex:0 0 auto}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.icon-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:var(--card);border:1px solid var(--line);transition:background .15s}
+.icon-btn:active{background:var(--card-hi)}
+.icon-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+
+.main{flex:1 1 auto;display:flex;min-height:0;gap:14px;padding:0 16px}
+.pane-list{flex:0 0 38%;max-width:460px;min-width:0;display:flex;flex-direction:column;min-height:0}
+.pane-lyrics{flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:center;position:relative}
+
+.list-head{display:flex;align-items:baseline;justify-content:space-between;
+  padding:2px 4px 8px;color:var(--dim);font-size:13px}
+.list-head b{color:var(--fg);font-size:15px;font-weight:600}
+.songlist{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;min-height:0;
+  scrollbar-width:none;-ms-overflow-style:none;padding-bottom:8px}
+.songlist::-webkit-scrollbar{display:none}
+.song{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:12px;
+  cursor:pointer;transition:background .12s}
+.song:active{background:var(--card-hi)}
+.song.on{background:var(--card-hi)}
+.song img{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:0 0 auto;
+  background:rgba(255,255,255,.07)}
+.song .meta{min-width:0;flex:1 1 auto}
+.song .t{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  display:flex;align-items:center;gap:6px}
+.song .a{font-size:12.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{flex:0 0 auto;font-size:10px;line-height:1;padding:3px 5px;border-radius:5px;
+  border:1px solid var(--line);color:var(--dim);letter-spacing:.03em}
+.badge.b-lib{color:#7fd6a2;border-color:rgba(127,214,162,.35)}
+.badge.b-yt{color:#ff8a8a;border-color:rgba(255,138,138,.35)}
+.badge.b-ext{color:#c3a6ff;border-color:rgba(195,166,255,.35)}
+
+/* ---------- 歌词 ---------- */
+#lyrics{height:100%;width:100%;overflow-y:scroll;text-align:center;
+  scrollbar-width:none;-ms-overflow-style:none;
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 16%,#000 84%,transparent);
+  mask-image:linear-gradient(180deg,transparent,#000 16%,#000 84%,transparent)}
+#lyrics::-webkit-scrollbar{display:none}
+#lyrics .pad{height:42%}
+.ly{padding:7px 8px;color:#b9c4ca;opacity:.62;font-size:23px;line-height:1.3;
+  transition:opacity .25s,color .25s;overflow-wrap:break-word}
+.ly.on{opacity:1;color:#fff;font-weight:600;font-size:27px}
+.ly-roma,.ly-trans{font-weight:400;line-height:1.2;margin-top:2px;overflow-wrap:break-word}
+.ly-roma{font-size:15px;color:#b9c7ce}
+.ly-trans{font-size:13px;color:#93a3ab}
+.ly.on .ly-roma{font-size:26px;color:#fff}
+.ly.on .ly-trans{font-size:16px;color:#d6e4ea}
+/* 有罗马音时把字号层级倒过来：罗马音最大（跟着唱），原文缩小只作对照 */
+.ly.has-roma .ly-main{font-size:13px;font-weight:400;color:#8c99a0;line-height:1.15}
+.ly.has-roma.on .ly-main{font-size:16px;color:#bcc8ce}
+
+/* 逐字扫光：当前行叠两层同字，上层亮色被 clip-path 从左往右揭开（GPU 合成，弱机友好） */
+.ly.kk .kk-wrap{position:relative;display:inline-block;max-width:100%;
+  white-space:normal;overflow-wrap:break-word}
+.ly.kk .kk-under{color:#8e9aa1}
+.ly.kk .kk-over{position:absolute;top:0;left:0;width:100%;color:#fff;
+  white-space:normal;overflow-wrap:break-word;
+  clip-path:inset(0 100% 0 0);-webkit-clip-path:inset(0 100% 0 0);
+  will-change:clip-path;pointer-events:none}
+.lyrics-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--dimmer);font-size:15px;pointer-events:none}
+.np-art{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;max-width:80%}
+.np-art img{width:min(34vh,240px);height:min(34vh,240px);object-fit:cover;border-radius:16px;
+  box-shadow:0 18px 50px rgba(0,0,0,.55);margin-bottom:10px}
+.np-t{font-size:19px;color:#fff;font-weight:600;text-align:center;
+  overflow-wrap:break-word;max-width:100%}
+.np-a{font-size:14px;color:var(--dim)}
+.np-n{font-size:13px;color:var(--dimmer);margin-top:6px}
+
+/* ---------- 底部播放条 ---------- */
+.player{flex:0 0 auto;display:flex;align-items:center;gap:18px;
+  padding:14px 20px 18px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.35))}
+.controls{flex:0 0 auto;display:flex;align-items:center;gap:10px;white-space:nowrap}
+.ctl{width:46px;height:46px;border-radius:50%;background:var(--card);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;transition:background .15s}
+.ctl:active{background:var(--card-hi)}
+.ctl.play{width:56px;height:56px;background:rgba(255,255,255,.92);color:#0b0d10;border:0}
+.ctl svg{width:20px;height:20px;fill:currentColor}
+.ctl.play svg{width:24px;height:24px}
+.pinfo{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:7px}
+.pinfo .row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.pinfo .name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pinfo .time{flex:0 0 auto;font-size:12.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.bar{height:16px;display:flex;align-items:center;cursor:pointer}
+.bar .track{width:100%;height:5px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden}
+.bar .fill{height:100%;width:0;background:var(--fg);border-radius:3px}
+
+/* ---------- 搜索 ---------- */
+.searchwrap{position:relative;display:flex;align-items:center;gap:8px}
+#q{width:0;opacity:0;padding:0;border:1px solid var(--line);border-radius:20px;
+  background:var(--card);height:40px;transition:width .25s,opacity .2s,padding .25s;min-width:0}
+.searchwrap.open #q{width:min(46vw,320px);opacity:1;padding:0 15px}
+#q::placeholder{color:var(--dimmer)}
+
+/* ---------- 弹窗 ---------- */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.62);backdrop-filter:blur(6px);
+  z-index:50;display:none;align-items:center;justify-content:center;padding:20px}
+.mask.open{display:flex}
+.sheet{width:min(680px,100%);max-height:88vh;overflow-y:auto;background:#14181c;
+  border:1px solid var(--line);border-radius:18px;padding:22px 24px 18px}
+.sheet h2{margin:0 0 4px;font-size:19px}
+.sheet .sub{color:var(--dim);font-size:13px;margin-bottom:18px}
+.group{border-top:1px solid var(--line);padding-top:15px;margin-top:15px}
+.group:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.group h3{margin:0 0 3px;font-size:14.5px;display:flex;align-items:center;gap:8px}
+.group .hint{color:var(--dimmer);font-size:12.5px;margin:0 0 11px;line-height:1.5}
+.group .hint a{color:var(--accent)}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:12.5px;color:var(--dim);margin-bottom:4px}
+.field input{width:100%;height:42px;padding:0 13px;border-radius:10px;
+  background:rgba(255,255,255,.05);border:1px solid var(--line)}
+.field input:focus{outline:0;border-color:rgba(90,200,250,.55)}
+.two{display:flex;gap:10px}
+.two .field{flex:1 1 0;min-width:0}
+.switch{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--dim);
+  margin-bottom:11px;cursor:pointer}
+.switch input{width:18px;height:18px;accent-color:var(--accent)}
+.actions{display:flex;gap:10px;justify-content:flex-end;align-items:center;
+  margin-top:20px;padding-top:15px;border-top:1px solid var(--line);flex-wrap:wrap}
+.actions .spacer{flex:1 1 auto}
+.btn{height:42px;padding:0 20px;border-radius:10px;border:1px solid var(--line);
+  background:var(--card);font-size:14px}
+.btn:active{background:var(--card-hi)}
+.btn.primary{background:#fff;color:#0b0d10;border-color:#fff;font-weight:600}
+.btn.ghost{background:none}
+#testout{font-size:12.5px;color:var(--dim);margin-right:auto;max-width:60%}
+#testout.ok{color:#7fd6a2}
+#testout.err{color:#ff9b9b}
+
+/* ---------- 提示条 ---------- */
+#toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:60;
+  background:rgba(20,24,28,.94);border:1px solid var(--line);border-radius:12px;
+  padding:10px 16px;font-size:13.5px;max-width:80vw;text-align:center;
+  opacity:0;transition:opacity .2s;pointer-events:none;white-space:pre-line}
+#toast.show{opacity:1}
+
+/* ---------- 窄屏 / 竖屏（小米平板、手机横竖屏都走这里）---------- */
+@media (max-width:960px){
+  .main{gap:10px;padding:0 12px}
+  .pane-list{flex-basis:42%}
+  .ly{font-size:20px}.ly.on{font-size:24px}.ly.on .ly-roma{font-size:23px}
+  .player{padding:12px 14px 16px;gap:12px}
+  .ctl{width:42px;height:42px}.ctl.play{width:50px;height:50px}
+}
+@media (max-width:720px){
+  .main{flex-direction:column;gap:8px;padding:0 10px}
+  .pane-list{flex:1 1 40%;max-width:none}
+  .pane-lyrics{flex:1 1 60%}
+  .ly{font-size:18px}.ly.on{font-size:21px}.ly.on .ly-roma{font-size:20px}
+  .controls{gap:7px}
+  .ctl{width:40px;height:40px}.ctl.play{width:46px;height:46px}
+  .player{padding:10px 12px 14px;gap:10px}
+  .searchwrap.open #q{width:min(56vw,260px)}
+}
+/* 横向空间很紧时（车机分屏等）把歌词让出去 */
+@media (max-height:420px){
+  .topbar{padding:6px 14px}
+  .ly{font-size:17px}.ly.on{font-size:20px}
+  .player{padding:8px 14px 10px}
+}
+</style>
+</head>
+<body>
+<div class="bg-layer" id="bgA"></div>
+<div class="bg-layer" id="bgB"></div>
+<div class="bg-shade"></div>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span><span>Navidrome</span></div>
+    <div class="topbar-right">
+      <div class="searchwrap" id="searchwrap">
+        <input id="q" type="search" placeholder="搜索歌曲 / 歌手…" autocomplete="off" enterkeyhint="search">
+        <button class="icon-btn" id="btnSearch" title="搜索" aria-label="搜索">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+        </button>
+      </div>
+      <button class="icon-btn" id="btnShuffle" title="随机 / 顺序" aria-label="随机或顺序">
+        <svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+      </button>
+      <button class="icon-btn" id="btnSettings" title="设置" aria-label="设置">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="pane-list">
+      <div class="list-head"><b id="listTitle">曲库</b><span id="listCount"></span></div>
+      <div class="songlist" id="songlist"></div>
+    </div>
+    <div class="pane-lyrics">
+      <div id="lyrics"></div>
+      <div class="lyrics-empty" id="lyricsEmpty">选一首歌开始</div>
+    </div>
+  </div>
+
+  <div class="player">
+    <div class="controls">
+      <button class="ctl" id="btnPrev" aria-label="上一首"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14l-11-7z"/></svg></button>
+      <button class="ctl play" id="btnPlay" aria-label="播放或暂停"><svg id="icPlay" viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></svg></button>
+      <button class="ctl" id="btnNext" aria-label="下一首"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l11 7-11 7z"/></svg></button>
+    </div>
+    <div class="pinfo">
+      <div class="row">
+        <div class="name" id="npName">还没有开始播放</div>
+        <div class="time"><span id="tCur">0:00</span> / <span id="tTot">0:00</span></div>
+      </div>
+      <div class="bar" id="bar"><div class="track"><div class="fill" id="fill"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="ytHost" style="position:fixed;left:-9999px;top:-9999px;width:320px;height:180px"></div>
+<div id="toast"></div>
+
+<div class="mask" id="mask">
+  <div class="sheet">
+    <h2>设置</h2>
+    <div class="sub">全部保存在这台设备的浏览器里，不会上传到任何地方。</div>
+
+    <div class="group">
+      <h3>Navidrome 服务器</h3>
+      <p class="hint">填你自己的 Navidrome 地址和登录账号。地址填到域名或 IP 就行，
+        <code>/rest</code> 会自动补上。</p>
+      <div class="field">
+        <label>服务器地址</label>
+        <input id="cfgUrl" type="url" placeholder="https://music.example.com" spellcheck="false">
+      </div>
+      <div class="two">
+        <div class="field"><label>用户名</label><input id="cfgUser" type="text" autocomplete="username" spellcheck="false"></div>
+        <div class="field"><label>密码</label><input id="cfgPass" type="password" autocomplete="current-password"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>YouTube 搜索 <span class="badge">可选</span></h3>
+      <p class="hint">
+        填了 key 才会在搜索结果里带上 YouTube。用的是官方 YouTube Data API v3，
+        在 <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">Google Cloud 控制台</a>
+        启用 “YouTube Data API v3”，再到「凭据」建一个 API 密钥即可，免费额度每天 10000 单位
+        （一次搜索 100 单位，够用了）。播放走 YouTube 官方播放器，不额外消耗额度。
+      </p>
+      <div class="field"><label>YouTube Data API Key</label>
+        <input id="cfgYt" type="password" placeholder="留空 = 不启用" spellcheck="false"></div>
+    </div>
+
+    <div class="group">
+      <h3>AI 搜索纠错 <span class="badge">可选</span></h3>
+      <p class="hint">
+        语音或手输容易出同音字（“告白气球” 听成 “告白汽球”）。填了 key 之后，
+        搜索会先让模型把词顺一遍，原词和纠正词的结果都会列出来。
+        任何兼容 OpenAI <code>/chat/completions</code> 的服务都可以。不填就完全不启用。
+      </p>
+      <label class="switch"><input id="cfgAiOn" type="checkbox"><span>启用 AI 纠错</span></label>
+      <div class="field"><label>接口地址</label>
+        <input id="cfgAiUrl" type="url" placeholder="https://api.openai.com/v1" spellcheck="false"></div>
+      <div class="two">
+        <div class="field"><label>API Key</label><input id="cfgAiKey" type="password" spellcheck="false"></div>
+        <div class="field"><label>模型</label><input id="cfgAiModel" type="text" placeholder="gpt-4o-mini" spellcheck="false"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>自建搜索后端 <span class="badge">可选 · 进阶</span></h3>
+      <p class="hint">
+        如果你自己跑了一个搜索/取流的小服务，把地址填这儿就能接进来，
+        接口约定见仓库里的 <code>docs/backend-api.md</code>。不填就没有这一栏。
+      </p>
+      <div class="field"><label>后端地址</label>
+        <input id="cfgExt" type="url" placeholder="留空 = 不启用" spellcheck="false"></div>
+    </div>
+
+    <div class="actions">
+      <span id="testout"></span>
+      <button class="btn ghost" id="btnTest">测试连接</button>
+      <button class="btn" id="btnCancel">取消</button>
+      <button class="btn primary" id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+/* ============================================================
+   Navidrome Music · Tesla
+   一个单文件的 Navidrome 前端。没有构建、没有依赖、没有后端。
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+const enc = encodeURIComponent;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+function fmtTime(sec) {
+  if (!isFinite(sec) || sec < 0) sec = 0;
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+let toastTimer;
+function toast(msg, ms) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms || 2600);
+}
+
+/* ---------- MD5 ----------
+   Subsonic 的认证是 t = md5(密码 + 每次随机的 salt)，所以必须在本地算 md5。
+   为了保持“单文件、零依赖”，这里放一份标准实现，别引 CDN。 */
+function md5(input) {
+  function rl(n, c) { return (n << c) | (n >>> (32 - c)); }
+  function add(a, b) { const l = (a & 0xFFFF) + (b & 0xFFFF); return (((a >> 16) + (b >> 16) + (l >> 16)) << 16) | (l & 0xFFFF); }
+  function cmn(q, a, b, x, s, t) { return add(rl(add(add(a, q), add(x, t)), s), b); }
+  function ff(a,b,c,d,x,s,t){ return cmn((b & c) | (~b & d), a, b, x, s, t); }
+  function gg(a,b,c,d,x,s,t){ return cmn((b & d) | (c & ~d), a, b, x, s, t); }
+  function hh(a,b,c,d,x,s,t){ return cmn(b ^ c ^ d, a, b, x, s, t); }
+  function ii(a,b,c,d,x,s,t){ return cmn(c ^ (b | ~d), a, b, x, s, t); }
+
+  // 先转 UTF-8 字节，否则中文密码算出来的 md5 是错的
+  const bytes = [];
+  for (const ch of unescape(encodeURIComponent(String(input)))) bytes.push(ch.charCodeAt(0));
+
+  const n = bytes.length, words = [];
+  for (let i = 0; i < n; i++) words[i >> 2] = (words[i >> 2] | 0) | (bytes[i] << ((i % 4) * 8));
+  words[n >> 2] = (words[n >> 2] | 0) | (0x80 << ((n % 4) * 8));
+  const len = (((n + 8) >> 6) + 1) * 16;
+  for (let i = 0; i < len; i++) words[i] = words[i] | 0;
+  words[len - 2] = n * 8;
+
+  let a = 1732584193, b = -271733879, c = -1732584194, d = 271733878;
+  for (let i = 0; i < len; i += 16) {
+    const oa = a, ob = b, oc = c, od = d, x = words.slice(i, i + 16);
+    a=ff(a,b,c,d,x[0],7,-680876936);   d=ff(d,a,b,c,x[1],12,-389564586);  c=ff(c,d,a,b,x[2],17,606105819);   b=ff(b,c,d,a,x[3],22,-1044525330);
+    a=ff(a,b,c,d,x[4],7,-176418897);   d=ff(d,a,b,c,x[5],12,1200080426);  c=ff(c,d,a,b,x[6],17,-1473231341); b=ff(b,c,d,a,x[7],22,-45705983);
+    a=ff(a,b,c,d,x[8],7,1770035416);   d=ff(d,a,b,c,x[9],12,-1958414417); c=ff(c,d,a,b,x[10],17,-42063);     b=ff(b,c,d,a,x[11],22,-1990404162);
+    a=ff(a,b,c,d,x[12],7,1804603682);  d=ff(d,a,b,c,x[13],12,-40341101);  c=ff(c,d,a,b,x[14],17,-1502002290);b=ff(b,c,d,a,x[15],22,1236535329);
+    a=gg(a,b,c,d,x[1],5,-165796510);   d=gg(d,a,b,c,x[6],9,-1069501632);  c=gg(c,d,a,b,x[11],14,643717713);  b=gg(b,c,d,a,x[0],20,-373897302);
+    a=gg(a,b,c,d,x[5],5,-701558691);   d=gg(d,a,b,c,x[10],9,38016083);    c=gg(c,d,a,b,x[15],14,-660478335); b=gg(b,c,d,a,x[4],20,-405537848);
+    a=gg(a,b,c,d,x[9],5,568446438);    d=gg(d,a,b,c,x[14],9,-1019803690); c=gg(c,d,a,b,x[3],14,-187363961);  b=gg(b,c,d,a,x[8],20,1163531501);
+    a=gg(a,b,c,d,x[13],5,-1444681467); d=gg(d,a,b,c,x[2],9,-51403784);    c=gg(c,d,a,b,x[7],14,1735328473);  b=gg(b,c,d,a,x[12],20,-1926607734);
+    a=hh(a,b,c,d,x[5],4,-378558);      d=hh(d,a,b,c,x[8],11,-2022574463); c=hh(c,d,a,b,x[11],16,1839030562); b=hh(b,c,d,a,x[14],23,-35309556);
+    a=hh(a,b,c,d,x[1],4,-1530992060);  d=hh(d,a,b,c,x[4],11,1272893353);  c=hh(c,d,a,b,x[7],16,-155497632);  b=hh(b,c,d,a,x[10],23,-1094730640);
+    a=hh(a,b,c,d,x[13],4,681279174);   d=hh(d,a,b,c,x[0],11,-358537222);  c=hh(c,d,a,b,x[3],16,-722521979);  b=hh(b,c,d,a,x[6],23,76029189);
+    a=hh(a,b,c,d,x[9],4,-640364487);   d=hh(d,a,b,c,x[12],11,-421815835); c=hh(c,d,a,b,x[15],16,530742520);  b=hh(b,c,d,a,x[2],23,-995338651);
+    a=ii(a,b,c,d,x[0],6,-198630844);   d=ii(d,a,b,c,x[7],10,1126891415);  c=ii(c,d,a,b,x[14],15,-1416354905);b=ii(b,c,d,a,x[5],21,-57434055);
+    a=ii(a,b,c,d,x[12],6,1700485571);  d=ii(d,a,b,c,x[3],10,-1894986606); c=ii(c,d,a,b,x[10],15,-1051523);   b=ii(b,c,d,a,x[1],21,-2054922799);
+    a=ii(a,b,c,d,x[8],6,1873313359);   d=ii(d,a,b,c,x[15],10,-30611744);  c=ii(c,d,a,b,x[6],15,-1560198380); b=ii(b,c,d,a,x[13],21,1309151649);
+    a=ii(a,b,c,d,x[4],6,-145523070);   d=ii(d,a,b,c,x[11],10,-1120210379);c=ii(c,d,a,b,x[2],15,718787259);   b=ii(b,c,d,a,x[9],21,-343485551);
+    a = add(a, oa); b = add(b, ob); c = add(c, oc); d = add(d, od);
+  }
+  const hex = '0123456789abcdef';
+  return [a, b, c, d].map(v => {
+    let out = '';
+    for (let i = 0; i < 4; i++) {
+      const byte = (v >> (i * 8)) & 0xFF;
+      out += hex[(byte >> 4) & 0xF] + hex[byte & 0xF];
+    }
+    return out;
+  }).join('');
+}
+
+/* ---------- 配置：只存在本机 localStorage ---------- */
+const CFG_KEY = 'navidrome-tesla.config.v1';
+const DEFAULTS = { url:'', user:'', pass:'', yt:'', aiOn:false, aiUrl:'', aiKey:'', aiModel:'', ext:'' };
+let cfg = Object.assign({}, DEFAULTS);
+try { Object.assign(cfg, JSON.parse(localStorage.getItem(CFG_KEY) || '{}')); } catch (e) {}
+const saveCfg = () => { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) { toast('浏览器不让保存设置（可能是隐私模式）'); } };
+const configured = () => !!(cfg.url && cfg.user && cfg.pass);
+
+/* ---------- Subsonic 客户端 ---------- */
+const CLIENT = 'navidrome-tesla';
+function restBase() {
+  let u = (cfg.url || '').trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+  return u.replace(/\/rest$/i, '') + '/rest';
+}
+function auth() {
+  // salt 每次请求都换一个，密码本身不出现在 URL 里
+  const salt = Math.random().toString(36).slice(2, 12);
+  return 'u=' + enc(cfg.user) + '&t=' + md5(cfg.pass + salt) + '&s=' + salt +
+         '&v=1.16.1&c=' + CLIENT + '&f=json';
+}
+const sub = (path, extra) => restBase() + '/' + path + '?' + auth() + (extra ? '&' + extra : '');
+
+async function subGet(path, extra) {
+  const r = await fetch(sub(path, extra), { cache: 'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const body = (await r.json())['subsonic-response'];
+  if (!body) throw new Error('返回格式不对，确认地址是 Navidrome 吗？');
+  if (body.status === 'failed') throw new Error((body.error && body.error.message) || '请求被拒绝');
+  return body;
+}
+
+/* ---------- 播放状态 ---------- */
+const audio = new Audio();
+audio.preload = 'none';
+let list = [];              // 当前列表（统一结构）
+let library = [];           // 缓存的整库
+let libLoaded = false;
+let idx = -1;               // 当前播放下标
+let shuffled = true;        // 默认随机，开车时不用挑
+let seq = 0;                // 搜索序号，防止慢响应覆盖新结果
+let ytPlayer = null, ytOn = false;   // ytOn = 当前这首走 YouTube 播放器
+
+const cur = () => list[idx] || null;
+const keyOf = it => it ? (it.src || '') + '|' + (it.id || it.videoId || '') : '';
+
+/* 两种播放引擎（本地音频 / YouTube 播放器）统一成一组接口 */
+const P = {
+  get time() { return ytOn ? (ytPlayer && ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0) : audio.currentTime; },
+  get dur()  {
+    if (ytOn) return (ytPlayer && ytPlayer.getDuration ? ytPlayer.getDuration() : 0) || 0;
+    if (isFinite(audio.duration) && audio.duration) return audio.duration;
+    const c = cur(); return (c && Number(c.duration)) || 0;
+  },
+  get paused() { return ytOn ? !(ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === 1) : audio.paused; },
+  play()  { ytOn ? ytPlayer && ytPlayer.playVideo()  : audio.play().catch(() => {}); },
+  pause() { ytOn ? ytPlayer && ytPlayer.pauseVideo() : audio.pause(); },
+  seek(t) { ytOn ? ytPlayer && ytPlayer.seekTo(t, true) : (audio.currentTime = t); },
+};
+
+/* ---------- 背景：封面高斯模糊，两层交叉淡入 ---------- */
+let bgFront = 'bgA';
+function setBackground(url) {
+  if (!url) return;
+  const back = bgFront === 'bgA' ? 'bgB' : 'bgA';
+  const el = $(back);
+  const img = new Image();
+  img.onload = () => {
+    el.style.backgroundImage = 'url("' + url + '")';
+    el.style.opacity = '1';
+    $(bgFront).style.opacity = '0';
+    bgFront = back;
+  };
+  img.src = url;
+}
+
+/* ---------- 曲库 ---------- */
+function fromSubsonic(s) {
+  return { src:'lib', id:s.id, title:s.title || '(无标题)', artist:s.artist || '',
+           album:s.album || '', duration:s.duration || 0, coverArt:s.coverArt, created:s.created };
+}
+/* 没有封面时的占位图。用内联 SVG 而不是外链图片，保持整个文件零外部依赖。 */
+const PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+  '<rect width="64" height="64" fill="#20262b"/>' +
+  '<path d="M40 16v22a7 7 0 1 1-3-5.7V22l-13 3v19a7 7 0 1 1-3-5.7V22.6L40 16z" fill="#4a565e"/></svg>');
+
+function coverOf(it, size) {
+  if (!it) return '';
+  if (it.src === 'lib') return it.coverArt ? sub('getCoverArt', 'id=' + enc(it.coverArt) + '&size=' + (size || 96)) : '';
+  return it.cover || '';
+}
+
+/* 封面按需加载。
+   这一步不是锦上添花：曲库列表动辄几百行，一次把封面全请求出去会把连接占满，
+   点歌之后音频流要排队十几秒才出声（实测点完歌 12 秒才响）。所以只给真正
+   滚到眼前的行发请求，缩略图也只要 96px。 */
+const coverIO = ('IntersectionObserver' in window) ? new IntersectionObserver((es, o) => {
+  es.forEach(e => {
+    if (!e.isIntersecting) return;
+    const img = e.target;
+    if (img.dataset.src) { img.src = img.dataset.src; delete img.dataset.src; }
+    o.unobserve(img);
+  });
+}, { root: null, rootMargin: '200px' }) : null;
+
+async function loadLibrary(force) {
+  if (libLoaded && !force) { applyOrder(); return; }
+  try {
+    const b = await subGet('search3', 'query=&songCount=500&albumCount=0&artistCount=0');
+    const songs = (b.searchResult3 && b.searchResult3.song) || [];
+    library = songs.map(fromSubsonic);
+    libLoaded = true;
+    if (!library.length) toast('连上了，但曲库是空的');
+    applyOrder();
+  } catch (e) {
+    toast('连不上 Navidrome：\n' + e.message);
+    openSettings();
+  }
+}
+function applyOrder() {
+  const lib = library.slice();
+  if (shuffled) for (let i = lib.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [lib[i], lib[j]] = [lib[j], lib[i]]; }
+  else lib.sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
+  setList(lib, '曲库');
+}
+
+/* ---------- 列表渲染 ---------- */
+const BADGE = { lib:'<span class="badge b-lib">库</span>', yt:'<span class="badge b-yt">YT</span>', ext:'<span class="badge b-ext">外部</span>' };
+function setList(items, title) {
+  list = items; idx = -1;
+  $('listTitle').textContent = title || '曲库';
+  render();
+}
+function render() {
+  $('listCount').textContent = list.length ? list.length + ' 首' : '';
+  const box = $('songlist');
+  if (!list.length) { box.innerHTML = ''; return; }
+  const frag = document.createDocumentFragment();
+  list.forEach((it, i) => {
+    const li = document.createElement('div');
+    li.className = 'song' + (i === idx ? ' on' : '');
+    li.innerHTML =
+      '<img alt="" decoding="async">' +
+      '<div class="meta"><div class="t">' + esc(it.title) + (BADGE[it.src] || '') + '</div>' +
+      '<div class="a">' + esc(it.artist) + '</div></div>';
+    const cov = coverOf(it);
+    const img = li.firstChild;
+    img.onerror = () => { img.onerror = null; img.src = PLACEHOLDER; };
+    if (cov) {
+      if (coverIO) { img.dataset.src = cov; coverIO.observe(img); }
+      else img.src = cov;
+    } else img.src = PLACEHOLDER;
+    li.addEventListener('click', () => play(i));
+    frag.appendChild(li);
+  });
+  box.innerHTML = '';
+  box.appendChild(frag);
+}
+function markPlaying() {
+  const kids = $('songlist').children;
+  for (let i = 0; i < kids.length; i++) kids[i].classList.toggle('on', i === idx);
+  const el = kids[idx];
+  if (el) {
+    const box = $('songlist'), t = el.offsetTop, b = t + el.offsetHeight;
+    if (t < box.scrollTop || b > box.scrollTop + box.clientHeight)
+      box.scrollTo({ top: t - box.clientHeight * 0.35, behavior: 'smooth' });
+  }
+}
+
+/* ---------- 取流地址 ---------- */
+async function streamUrl(it) {
+  if (it.src === 'lib') return sub('stream', 'id=' + enc(it.id) + '&format=raw');
+  if (it.src === 'ext') {
+    const r = await fetch(extBase() + '/play?' + new URLSearchParams(it.play || { id: it.id })).then(r => r.json());
+    if (!r || !r.url) throw new Error('外部后端没返回播放地址');
+    return r.url;
+  }
+  throw new Error('这个来源不用解析流地址');
+}
+
+/* ---------- 播放 ---------- */
+async function play(i) {
+  const it = list[i];
+  if (!it) return;
+  idx = i;
+  markPlaying();
+  $('npName').textContent = it.title + (it.artist ? ' — ' + it.artist : '');
+  setBackground(coverOf(it, 600));
+  loadLyrics(it);
+
+  if (it.src === 'yt') { ytOn = true; audio.pause(); return playYouTube(it); }
+
+  ytOn = false;
+  if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+  try {
+    audio.src = await streamUrl(it);
+    audio.load();
+    await audio.play();
+    setPlayIcon(true);
+  } catch (e) {
+    // 原始格式（flac 等）浏览器放不了时，退回让服务端转码成 mp3
+    if (it.src === 'lib' && audio.src.indexOf('format=raw') !== -1) {
+      try {
+        audio.src = sub('stream', 'id=' + enc(it.id) + '&format=mp3&maxBitRate=320');
+        audio.load(); await audio.play(); setPlayIcon(true); return;
+      } catch (e2) {}
+    }
+    toast('放不了这首：' + (e && e.message ? e.message : it.title));
+  }
+}
+function setPlayIcon(playing) {
+  $('icPlay').innerHTML = playing
+    ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>'
+    : '<path d="M7 4l14 8-14 8z"/>';
+}
+audio.addEventListener('play',  () => setPlayIcon(true));
+audio.addEventListener('pause', () => setPlayIcon(false));
+audio.addEventListener('ended', () => next());
+
+function next() { if (list.length) play((idx + 1) % list.length); }
+function prev() { if (list.length) play((idx - 1 + list.length) % list.length); }
+
+/* ---------- YouTube 播放：走官方 IFrame 播放器 ----------
+   浏览器里没法把 YouTube 解成直链，所以播放交给官方播放器（藏在屏幕外，只要声音）。
+   这条路不消耗 Data API 配额，配额只花在搜索上。 */
+let ytApiPromise = null;
+function ytApi() {
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise((resolve, reject) => {
+    if (window.YT && window.YT.Player) return resolve();
+    window.onYouTubeIframeAPIReady = resolve;
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    s.onerror = () => reject(new Error('加载 YouTube 播放器失败（网络不通？）'));
+    document.head.appendChild(s);
+    setTimeout(() => reject(new Error('加载 YouTube 播放器超时')), 15000);
+  }).then(() => new Promise(resolve => {
+    if (ytPlayer) return resolve();
+    ytPlayer = new YT.Player('ytHost', {
+      height: '180', width: '320',
+      playerVars: { playsinline: 1, controls: 0, disablekb: 1 },
+      events: {
+        onReady: () => resolve(),
+        onStateChange: e => {
+          if (e.data === YT.PlayerState.ENDED) next();
+          if (ytOn) setPlayIcon(e.data === YT.PlayerState.PLAYING);
+        },
+        onError: () => toast('这个视频不让外部播放，换一条试试'),
+      },
+    });
+  }));
+  return ytApiPromise;
+}
+async function playYouTube(it) {
+  try { await ytApi(); ytPlayer.loadVideoById(it.videoId); ytPlayer.playVideo(); setPlayIcon(true); }
+  catch (e) { toast(e.message); }
+}
+
+/* ---------- 歌词 ---------- */
+let lyrics = [], lineIdx = -1;
+const NO_LYRIC = [{ start: 1e9, value: '' }];
+
+function showLyricPlaceholder(text) {
+  $('lyrics').innerHTML = '';
+  const e = $('lyricsEmpty'), it = cur();
+  // 没歌词的歌不少（尤其 YouTube），右边空一片太难看，就把封面放大顶上
+  if (it) {
+    e.innerHTML = '<div class="np-art"><img alt="">' +
+      '<div class="np-t">' + esc(it.title) + '</div>' +
+      '<div class="np-a">' + esc(it.artist || '') + '</div>' +
+      '<div class="np-n">' + esc(text) + '</div></div>';
+    const img = e.querySelector('img');
+    img.onerror = () => { img.onerror = null; img.src = PLACEHOLDER; };
+    img.src = coverOf(it, 600) || PLACEHOLDER;
+  } else {
+    e.innerHTML = '<div class="np-n">' + esc(text) + '</div>';
+  }
+  e.style.display = '';
+}
+async function loadLyrics(it) {
+  lyrics = []; lineIdx = -1; kkState = null; kkPrev = -1;
+  showLyricPlaceholder('歌词加载中…');
+  try {
+    let lines = [];
+    if (it.src === 'lib') {
+      const b = await subGet('getLyricsBySongId', 'id=' + enc(it.id));
+      const sl = b.lyricsList && b.lyricsList.structuredLyrics;
+      if (sl && sl.length) {
+        // 同一时间戳的多行（常见于双语歌词）合成一行，避免叠在一起
+        lines = sl[0].line.reduce((acc, c) => {
+          const hit = acc.find(x => x.start === c.start);
+          if (hit) hit.value += '\n' + c.value; else acc.push({ start: c.start, value: c.value });
+          return acc;
+        }, []);
+      }
+    } else if (it.src === 'ext') {
+      const r = await fetch(extBase() + '/lyric?' + new URLSearchParams(it.play || { id: it.id })).then(r => r.json());
+      lines = (r && r.lines) || [];
+    }
+    if (!lines.length) { showLyricPlaceholder('这首没有歌词'); lyrics = NO_LYRIC; return; }
+    lyrics = lines;
+    paintLyrics();
+  } catch (e) {
+    showLyricPlaceholder('这首没有歌词');
+    lyrics = NO_LYRIC;
+  }
+}
+function paintLyrics() {
+  $('lyricsEmpty').style.display = 'none';
+  // 每行拆三层：原文 .ly-main / 罗马音 .ly-roma / 翻译 .ly-trans。
+  // 拆开的原因：扫光要整个替换某一层的 innerHTML，分层后不会把别的副行冲掉；
+  // 有罗马音时 CSS 还会用 .has-roma 把字号层级倒过来（罗马音最大）。
+  let html = '<div class="pad"></div>';
+  lyrics.forEach((l, i) => {
+    html += '<div class="ly' + (l.roma ? ' has-roma' : '') + '" id="ly' + i + '">' +
+            '<div class="ly-main">' + esc(l.value).replace(/\n/g, '<br>') + '</div>' +
+            (l.roma  ? '<div class="ly-roma">'  + esc(l.roma)  + '</div>' : '') +
+            (l.trans ? '<div class="ly-trans">' + esc(l.trans) + '</div>' : '') +
+            '</div>';
+  });
+  html += '<div class="pad"></div>';
+  $('lyrics').innerHTML = html;
+  lineIdx = -1;
+}
+function syncLyrics(ms) {
+  if (!lyrics.length) return;
+  let i = 0;
+  for (let k = 0; k < lyrics.length; k++) if (ms >= lyrics[k].start) i = k;
+  if (i !== lineIdx) {
+    const old = $('ly' + lineIdx); if (old) old.classList.remove('on');
+    const el = $('ly' + i);
+    if (el) {
+      el.classList.add('on');
+      const box = $('lyrics');
+      box.scrollTo({ top: el.offsetTop - (box.clientHeight / 2 - el.offsetHeight / 2), behavior: 'smooth' });
+    }
+    kkSetLine(i);
+    lineIdx = i;
+  }
+  kkTick();
+}
+
+/* ---------- 逐字扫光 ----------
+   只给"当前行"铺两层同字：底层暗 .kk-under + 上层亮 .kk-over，每帧只改 .kk-over 一个
+   clip-path（不触发重排，GPU 合成，弱机也扛得住）。没有逐字时间的歌自动退回整行高亮。 */
+let kkState = null, kkRAF = null, kkPrev = -1;
+function kkPlain(i) {
+  const el = $('ly' + i), l = lyrics[i];
+  if (!el || !l) return;
+  el.classList.remove('kk');
+  const main = el.querySelector('.ly-main');
+  if (main) main.innerHTML = esc(l.value).replace(/\n/g, '<br>');
+  const roma = el.querySelector('.ly-roma');
+  if (roma) roma.textContent = l.roma || '';
+}
+function kkSetLine(i) {
+  if (kkPrev >= 0 && kkPrev !== i) kkPlain(kkPrev);
+  kkPrev = -1; kkState = null;
+  const l = lyrics[i], el = $('ly' + i);
+  if (!el || !l) return;
+  // 有罗马音时扫光跑在罗马音那层——它才是最大的主视觉行
+  const useRoma = !!(l.romaChars && l.romaChars.length);
+  const chars = useRoma ? l.romaChars : l.chars;
+  if (!chars || !chars.length) return;
+  const tgt = el.querySelector(useRoma ? '.ly-roma' : '.ly-main');
+  if (!tgt) return;
+  const spans = chars.map(c => '<span class="kc">' + esc(c.c) + '</span>').join('');
+  tgt.innerHTML = '<span class="kk-wrap"><span class="kk-under">' + spans + '</span>' +
+                  '<span class="kk-over">' + spans + '</span></span>';
+  el.classList.add('kk');
+
+  const wrap = tgt.querySelector('.kk-wrap'), over = tgt.querySelector('.kk-over');
+  const wr = wrap.getBoundingClientRect();
+  // 一次性量好每个字的左右边界和所在行，之后每帧只写不读，避免反复重排
+  const cl = [], cr = [], ct = [];
+  tgt.querySelectorAll('.kk-under .kc').forEach(s => {
+    const r = s.getBoundingClientRect();
+    cl.push(r.left - wr.left); cr.push(r.right - wr.left); ct.push(Math.round(r.top - wr.top));
+  });
+  const rowTops = [], crow = [], rowL = [], rowR = [];
+  ct.forEach(t => { if (!rowTops.length || t !== rowTops[rowTops.length - 1]) rowTops.push(t); });
+  for (let k = 0; k < cl.length; k++) {
+    const r = rowTops.indexOf(ct[k]);
+    crow.push(r);
+    if (rowL[r] === undefined || cl[k] < rowL[r]) rowL[r] = cl[k];
+    if (rowR[r] === undefined || cr[k] > rowR[r]) rowR[r] = cr[k];
+  }
+  const rowY = [0];
+  for (let k = 1; k < rowTops.length; k++) rowY.push(rowTops[k]);
+  rowY.push(wr.height);
+
+  kkState = { over, cl, cr, crow, rowL, rowR, rowY, nRows: rowTops.length,
+              cs: chars.map(c => c.o), ce: chars.map(c => c.o + c.d), start: l.start };
+  kkPrev = i;
+  kkTick();
+}
+function kkTick() {
+  const s = kkState; if (!s) return;
+  const t = P.time * 1000 - s.start, n = s.cs.length;
+  let r, x;
+  if (t <= 0) { r = 0; x = s.rowL[0]; }
+  else if (t >= s.ce[n - 1]) { r = s.nRows - 1; x = s.rowR[r]; }
+  else {
+    let k = 0; while (k < n && t >= s.ce[k]) k++;
+    if (k >= n) { r = s.nRows - 1; x = s.rowR[r]; }
+    else {
+      const f = clamp((t - s.cs[k]) / Math.max(1, s.ce[k] - s.cs[k]), 0, 1);
+      r = s.crow[k];
+      x = s.cl[k] + f * (s.cr[k] - s.cl[k]);
+    }
+  }
+  if (x < s.rowL[r]) x = s.rowL[r];
+
+  let cp;
+  if (s.nRows === 1) {
+    cp = 'inset(0 ' + (s.rowR[0] - x).toFixed(1) + 'px 0 0)';
+  } else {
+    // 折行时：已唱完的行给整行宽、当前行给到 x。歌词居中，每行左边界不同，
+    // 所以逐行取 rowL/rowR，描成一个阶梯多边形（右边自上而下、左边自下而上闭合）。
+    const p = [];
+    for (let k = 0; k <= r; k++) {
+      const w = (k < r) ? s.rowR[k] : x;
+      p.push(w.toFixed(1) + 'px ' + s.rowY[k].toFixed(1) + 'px',
+             w.toFixed(1) + 'px ' + s.rowY[k + 1].toFixed(1) + 'px');
+    }
+    for (let k = r; k >= 0; k--) {
+      p.push(s.rowL[k].toFixed(1) + 'px ' + s.rowY[k + 1].toFixed(1) + 'px',
+             s.rowL[k].toFixed(1) + 'px ' + s.rowY[k].toFixed(1) + 'px');
+    }
+    cp = 'polygon(' + p.join(',') + ')';
+  }
+  s.over.style.clipPath = cp;
+  s.over.style.webkitClipPath = cp;
+}
+function kkLoop() {
+  kkTick();
+  kkRAF = (!P.paused && kkState) ? requestAnimationFrame(kkLoop) : null;
+}
+
+/* ---------- 搜索：本地 + 可选插件 ---------- */
+const extBase = () => (cfg.ext || '').trim().replace(/\/+$/, '');
+
+async function searchLocal(q) {
+  const b = await subGet('search3', 'query=' + enc(q) + '&songCount=60&albumCount=0&artistCount=0');
+  return ((b.searchResult3 && b.searchResult3.song) || []).map(fromSubsonic);
+}
+
+/* YouTube Data API v3。只搜索，不取流——播放交给官方播放器。 */
+async function searchYouTube(q) {
+  if (!cfg.yt) return [];
+  const url = 'https://www.googleapis.com/youtube/v3/search' +
+    '?part=snippet&type=video&videoCategoryId=10&maxResults=12&q=' + enc(q) + '&key=' + enc(cfg.yt);
+  const d = await fetch(url).then(r => r.json());
+  if (d.error) throw new Error('YouTube：' + ((d.error.errors && d.error.errors[0] && d.error.errors[0].reason) || d.error.message || '请求被拒'));
+  return (d.items || []).filter(v => v.id && v.id.videoId).map(v => ({
+    src: 'yt', videoId: v.id.videoId,
+    title: (v.snippet.title || '').replace(/&(amp|quot|#39);/g, m => ({'&amp;':'&','&quot;':'"','&#39;':"'"}[m] || m)),
+    artist: v.snippet.channelTitle || '',
+    cover: ((v.snippet.thumbnails || {}).medium || (v.snippet.thumbnails || {}).default || {}).url || '',
+  }));
+}
+
+/* 自建后端（可选）。约定见 docs/backend-api.md。 */
+async function searchExt(q) {
+  if (!extBase()) return [];
+  const d = await fetch(extBase() + '/search?q=' + enc(q)).then(r => r.json());
+  return ((d && d.results) || []).map(r => ({
+    src: 'ext', id: r.id, title: r.title || '', artist: r.artist || '',
+    duration: r.duration || 0, cover: r.cover || '', play: r.play || { id: r.id },
+  }));
+}
+
+/* AI 纠错（可选）：任何兼容 OpenAI /chat/completions 的服务都行 */
+async function aiCorrect(q) {
+  if (!(cfg.aiOn && cfg.aiUrl && cfg.aiKey && cfg.aiModel)) return null;
+  const url = cfg.aiUrl.trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '') + '/chat/completions';
+  const d = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.aiKey },
+    body: JSON.stringify({
+      model: cfg.aiModel, temperature: 0, max_tokens: 40,
+      messages: [
+        { role: 'system', content: '你是音乐搜索纠错器。用户给一段可能有同音字或错别字的歌名/歌手名，你只输出最可能的正确写法，不解释、不加引号标点。本来就对就原样输出。' },
+        { role: 'user', content: q },
+      ],
+    }),
+  }).then(r => r.json());
+  const out = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+  const t = (out || '').trim().replace(/^["'“”「」]+|["'“”「」]+$/g, '');
+  return (t && t !== q && t.length <= 40) ? t : null;
+}
+
+async function doSearch(raw) {
+  const q0 = (raw || '').trim();
+  if (!q0) return;
+  if (!configured()) { openSettings(); return; }
+
+  const my = ++seq, acc = [];
+  setList(acc, '搜索「' + q0 + '」');
+  const push = rows => {
+    if (my !== seq || !rows || !rows.length) return;
+    let added = false;
+    rows.forEach(r => { if (!acc.some(x => keyOf(x) === keyOf(r))) { acc.push(r); added = true; } });
+    if (added) { list = acc; render(); markPlaying(); }
+  };
+  const autoplay = () => { if (my === seq && idx < 0 && acc.length) play(0); };
+
+  // ① 本地先出——库里有的话马上就能响，不用等网络插件
+  try { push(await searchLocal(q0)); autoplay(); }
+  catch (e) { toast('搜索失败：' + e.message); return; }
+
+  // ② AI 纠错（开了才走）。改了词就两个词都搜，结果都留着，不替换
+  const terms = [q0];
+  try {
+    const q1 = await aiCorrect(q0);
+    if (q1 && my === seq) {
+      terms.push(q1);
+      toast('AI 纠正：' + q0 + ' → ' + q1);
+      push(await searchLocal(q1)); autoplay();
+    }
+  } catch (e) { /* 纠错挂了不影响搜索本身 */ }
+
+  // ③ 插件并行，各自失败互不影响
+  const jobs = [];
+  terms.forEach(t => {
+    if (cfg.yt) jobs.push(searchYouTube(t).then(push).catch(e => toast(e.message)));
+    if (extBase()) jobs.push(searchExt(t).then(push).catch(() => {}));
+  });
+  await Promise.all(jobs);
+  if (my === seq) { autoplay(); if (!acc.length) toast('没找到「' + q0 + '」'); }
+}
+
+/* ---------- 进度 / 歌词推进 ---------- */
+setInterval(() => {
+  const d = P.dur, t = P.time;
+  $('tCur').textContent = fmtTime(t);
+  $('tTot').textContent = fmtTime(d);
+  $('fill').style.width = (d ? clamp(t / d * 100, 0, 100) : 0) + '%';
+  if (lyrics.length) syncLyrics(t * 1000);
+  if (!P.paused && !kkRAF && kkState) kkLoop();
+}, 200);
+
+/* ---------- 交互 ---------- */
+$('btnPlay').addEventListener('click', () => { P.paused ? P.play() : P.pause(); setPlayIcon(!P.paused); });
+$('btnNext').addEventListener('click', next);
+$('btnPrev').addEventListener('click', prev);
+$('bar').addEventListener('click', e => {
+  const d = P.dur; if (!d) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  P.seek(clamp((e.clientX - r.left) / r.width, 0, 1) * d);
+});
+$('btnShuffle').addEventListener('click', () => {
+  shuffled = !shuffled;
+  toast(shuffled ? '随机播放' : '按入库时间倒序');
+  if (libLoaded) applyOrder(); else loadLibrary();
+});
+$('btnSearch').addEventListener('click', () => {
+  const w = $('searchwrap');
+  w.classList.toggle('open');
+  if (w.classList.contains('open')) $('q').focus();
+});
+$('q').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const v = e.target.value;
+    $('searchwrap').classList.remove('open');
+    e.target.blur();
+    doSearch(v);
+  }
+});
+document.addEventListener('keydown', e => {
+  if (/^(INPUT|TEXTAREA)$/.test((e.target.tagName || ''))) return;
+  if (e.code === 'Space') { e.preventDefault(); P.paused ? P.play() : P.pause(); setPlayIcon(!P.paused); }
+  if (e.key === 'ArrowRight') next();
+  if (e.key === 'ArrowLeft') prev();
+});
+
+/* ---------- 设置 ---------- */
+const FIELDS = { url:'cfgUrl', user:'cfgUser', pass:'cfgPass', yt:'cfgYt',
+                 aiOn:'cfgAiOn', aiUrl:'cfgAiUrl', aiKey:'cfgAiKey', aiModel:'cfgAiModel', ext:'cfgExt' };
+function openSettings() {
+  for (const k in FIELDS) {
+    const el = $(FIELDS[k]);
+    if (el.type === 'checkbox') el.checked = !!cfg[k]; else el.value = cfg[k] || '';
+  }
+  $('testout').textContent = '';
+  $('testout').className = '';
+  $('mask').classList.add('open');
+}
+function readForm() {
+  const out = {};
+  for (const k in FIELDS) {
+    const el = $(FIELDS[k]);
+    out[k] = el.type === 'checkbox' ? el.checked : el.value.trim();
+  }
+  return out;
+}
+$('btnSettings').addEventListener('click', openSettings);
+$('btnCancel').addEventListener('click', () => $('mask').classList.remove('open'));
+$('mask').addEventListener('click', e => { if (e.target === $('mask')) $('mask').classList.remove('open'); });
+$('btnTest').addEventListener('click', async () => {
+  const out = $('testout'), old = Object.assign({}, cfg);
+  Object.assign(cfg, readForm());
+  out.className = ''; out.textContent = '连接中…';
+  try {
+    const b = await subGet('ping');
+    out.className = 'ok';
+    out.textContent = '连上了 · ' + (b.type || 'subsonic') + ' ' + (b.serverVersion || '');
+  } catch (e) {
+    out.className = 'err';
+    out.textContent = '失败：' + e.message;
+  }
+  Object.assign(cfg, old);   // 测试不落盘，保存才落
+});
+$('btnSave').addEventListener('click', () => {
+  Object.assign(cfg, readForm());
+  saveCfg();
+  $('mask').classList.remove('open');
+  libLoaded = false;
+  if (configured()) loadLibrary(true);
+  else toast('至少要填 Navidrome 地址、用户名和密码');
+});
+
+/* ---------- 启动 ---------- */
+if (configured()) loadLibrary();
+else { openSettings(); showLyricPlaceholder('先在右上角设置里填上你的 Navidrome'); }
+
+})();
+</script>
+</body>
+</html>
