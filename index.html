@@ -19,10 +19,18 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
+html{overflow:hidden;overscroll-behavior:none}
 body{
+  /* iOS 的 100vh / height:100% 算的是「浏览器工具栏收起时」的高度，而地址栏和底栏
+     平时是展开的 —— 页面因此比可视区高一截，排在最后的播放条会被顶出屏幕，要滑
+     一下才看得到。按支持度递进：100% 兜底 → svh（按工具栏展开算，必定装得下）
+     → dvh（跟随工具栏伸缩，最贴合真实可视区）。 */
+  height:100svh;
+  height:100dvh;
   background:var(--bg);color:var(--fg);
   font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
   overflow:hidden;
+  overscroll-behavior:none;
 }
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
@@ -103,6 +111,17 @@ button{cursor:pointer;border:0;background:none}
   will-change:clip-path;pointer-events:none}
 .lyrics-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   color:var(--dimmer);font-size:15px;pointer-events:none}
+/* 拖动歌词时的跳转准星。默认藏着，body.browsing 时才出现。
+   整条 pointer-events:none，只有按钮本身可点——不挡歌词的滚动。 */
+.seek-cue{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  display:none;align-items:center;gap:10px;padding:0 10px;pointer-events:none;z-index:5}
+body.browsing .seek-cue{display:flex}
+.seek-line{flex:1 1 auto;height:1px;background:rgba(255,255,255,.20)}
+.seek-btn{flex:0 0 auto;pointer-events:auto;display:flex;align-items:center;gap:6px;
+  height:32px;padding:0 13px;border-radius:16px;border:0;
+  background:rgba(255,255,255,.94);color:#0b0d10;font-size:13px;font-weight:600;
+  font-variant-numeric:tabular-nums;box-shadow:0 6px 20px rgba(0,0,0,.45)}
+.seek-btn:active{transform:scale(.96)}
 .np-art{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;max-width:80%}
 .np-art img{width:min(34vh,240px);height:min(34vh,240px);object-fit:cover;border-radius:16px;
   box-shadow:0 18px 50px rgba(0,0,0,.55);margin-bottom:10px}
@@ -186,15 +205,62 @@ button{cursor:pointer;border:0;background:none}
   .player{padding:12px 14px 16px;gap:12px}
   .ctl{width:42px;height:42px}.ctl.play{width:50px;height:50px}
 }
+/* 手机（≤720px）：宽度不够并排两栏，改成歌词占满屏幕作为默认界面，
+   歌单收进底部浮层——收起时只露一条把手，点一下升起占大半屏高度，
+   在里面滑，选中一首自动缩回去，歌词重新露出来。 */
 @media (max-width:720px){
-  .main{flex-direction:column;gap:8px;padding:0 10px}
-  .pane-list{flex:1 1 40%;max-width:none}
-  .pane-lyrics{flex:1 1 60%}
+  .main{position:relative;flex-direction:column;gap:0;padding:0;overflow:hidden}
+  .pane-lyrics{flex:1 1 auto;width:100%;padding:0 10px}
   .ly{font-size:18px}.ly.on{font-size:21px}.ly.on .ly-roma{font-size:20px}
   .controls{gap:7px}
   .ctl{width:40px;height:40px}.ctl.play{width:46px;height:46px}
   .player{padding:10px 12px 14px;gap:10px}
   .searchwrap.open #q{width:min(56vw,260px)}
+
+  /* 浮层用 absolute 而不是 fixed：.main 正好从顶栏下延伸到播放条上沿，
+     它的 overflow:hidden 会把收起时移下去的部分裁掉。用 fixed 会脱离这个
+     裁切，收起后列表会从播放条底下透出来。 */
+  .pane-list{
+    position:absolute;left:0;right:0;bottom:0;
+    flex:none;width:100%;max-width:none;height:72dvh;
+    z-index:20;
+    padding:0;
+    border-radius:16px 16px 0 0;
+    background:rgba(16,18,22,.93);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    box-shadow:0 -12px 40px rgba(0,0,0,.5);
+    transform:translateY(calc(100% - var(--handle-h,44px)));
+    transition:transform .3s cubic-bezier(.22,.61,.36,1);
+    will-change:transform;
+  }
+  body.sheet-open .pane-list{transform:translateY(0)}
+
+  /* 列表标题栏兼作把手：收起时露出的就是它 */
+  .list-head{
+    height:44px;align-items:center;justify-content:flex-start;gap:8px;
+    padding:0 14px;position:relative;cursor:pointer;flex:0 0 auto;
+  }
+  .list-head::before{content:'';position:absolute;top:6px;left:50%;
+    transform:translateX(-50%);width:38px;height:4px;border-radius:2px;
+    background:rgba(255,255,255,.3)}
+  .list-head::after{content:'▲';margin-left:auto;font-size:11px;
+    color:rgba(255,255,255,.55);transition:transform .3s ease}
+  body.sheet-open .list-head::after{transform:rotate(180deg)}
+
+  /* 一行一首，尽量多塞：手机竖屏一屏能看十七八首 */
+  .songlist{padding:0 0 8px}
+  .song{padding:5px 14px;border-radius:0;gap:9px}
+  .song img{width:22px;height:22px;border-radius:3px}
+  /* 歌名和歌手同行；放不下的可以左右滑着看。右边缘 mask 淡出——文字短时淡出落在
+     空白上看不出来，只有真超出才显现，等于自带"还有更多"的提示。 */
+  .song .meta{display:flex;align-items:baseline;gap:7px;white-space:nowrap;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 26px),transparent);
+    mask-image:linear-gradient(to right,#000 calc(100% - 26px),transparent)}
+  .song .meta::-webkit-scrollbar{display:none}
+  .song .t{font-size:14px;line-height:22px;flex:0 0 auto;overflow:visible;text-overflow:clip}
+  .song .a{font-size:12px;flex:0 0 auto;overflow:visible;text-overflow:clip}
+  .badge{font-size:10px;padding:1px 4px}
 }
 /* 横向空间很紧时（车机分屏等）把歌词让出去 */
 @media (max-height:420px){
@@ -230,12 +296,20 @@ button{cursor:pointer;border:0;background:none}
 
   <div class="main">
     <div class="pane-list">
-      <div class="list-head"><b id="listTitle">曲库</b><span id="listCount"></span></div>
+      <div class="list-head" id="listHead"><b id="listTitle">曲库</b><span id="listCount"></span></div>
       <div class="songlist" id="songlist"></div>
     </div>
-    <div class="pane-lyrics">
+    <div class="pane-lyrics" id="lyricsPane">
       <div id="lyrics"></div>
       <div class="lyrics-empty" id="lyricsEmpty">选一首歌开始</div>
+      <!-- 手动拖歌词时出现：中间一条准星线 + 目标时间。点按钮才真的跳，避免误触。 -->
+      <div class="seek-cue" id="seekCue">
+        <span class="seek-line"></span>
+        <button class="seek-btn" id="seekBtn">
+          <span id="seekTime">0:00</span>
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M7 4l14 8-14 8z" fill="currentColor"/></svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -562,7 +636,10 @@ function render() {
       if (coverIO) { img.dataset.src = cov; coverIO.observe(img); }
       else img.src = cov;
     } else img.src = PLACEHOLDER;
-    li.addEventListener('click', () => play(i));
+    li.addEventListener('click', () => {
+      play(i);
+      if (isMobile()) document.body.classList.remove('sheet-open');   // 选好了就缩回去露出歌词
+    });
     frag.appendChild(li);
   });
   box.innerHTML = '';
@@ -654,6 +731,7 @@ function showLyricPlaceholder(text) {
 }
 async function loadLyrics(it) {
   lyrics = []; lineIdx = -1; kkState = null; kkPrev = -1;
+  endBrowse();                      // 换歌了，退出手动浏览态
   showLyricPlaceholder('歌词加载中…');
   try {
     let lines = [];
@@ -706,14 +784,72 @@ function syncLyrics(ms) {
     const el = $('ly' + i);
     if (el) {
       el.classList.add('on');
-      const box = $('lyrics');
-      box.scrollTo({ top: el.offsetTop - (box.clientHeight / 2 - el.offsetHeight / 2), behavior: 'smooth' });
+      // 用户正在手动拖歌词时别抢滚动条，否则手一松就被拉回当前行
+      if (!browsing) {
+        const box = $('lyrics');
+        box.scrollTo({ top: el.offsetTop - (box.clientHeight / 2 - el.offsetHeight / 2), behavior: 'smooth' });
+      }
     }
     kkSetLine(i);
     lineIdx = i;
   }
   kkTick();
 }
+
+/* ---------- 拖歌词跳转 ----------
+   拖动歌词时暂停自动跟随，在正中间显示一条准星线和目标时间。
+   不直接跳——手指滑过去就跳太容易误触，必须点一下那个按钮才 seek。
+   松手几秒不动就自动恢复跟随，不用手动退出。 */
+let browsing = false, browseTimer = null, seekTarget = -1;
+
+function lyricNearestCenter() {
+  const box = $('lyrics');
+  const mid = box.getBoundingClientRect().top + box.clientHeight / 2;
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < lyrics.length; i++) {
+    const el = $('ly' + i);
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    const d = Math.abs(r.top + r.height / 2 - mid);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+function armBrowseTimeout() {
+  clearTimeout(browseTimer);
+  browseTimer = setTimeout(endBrowse, 4000);
+}
+function beginBrowse() {
+  if (!lyrics.length || lyrics === NO_LYRIC) return;
+  browsing = true;
+  armBrowseTimeout();
+}
+function endBrowse() {
+  browsing = false;
+  seekTarget = -1;
+  clearTimeout(browseTimer);
+  document.body.classList.remove('browsing');
+}
+['wheel', 'touchstart', 'pointerdown'].forEach(ev =>
+  $('lyrics').addEventListener(ev, beginBrowse, { passive: true }));
+$('lyrics').addEventListener('scroll', () => {
+  if (!browsing) return;
+  const i = lyricNearestCenter();
+  if (i >= 0 && lyrics[i]) {
+    seekTarget = i;
+    $('seekTime').textContent = fmtTime((lyrics[i].start || 0) / 1000);
+    document.body.classList.add('browsing');
+  }
+  armBrowseTimeout();     // 惯性滚动期间不断续期，停下来才开始倒计时
+}, { passive: true });
+$('seekBtn').addEventListener('click', e => {
+  e.stopPropagation();    // 别触发歌词区那个"收起浮层"的点击
+  if (seekTarget >= 0 && lyrics[seekTarget]) {
+    P.seek((lyrics[seekTarget].start || 0) / 1000);
+    lineIdx = -1;         // 强制重新定位当前行（跳到同一行时也要重新居中）
+  }
+  endBrowse();
+});
 
 /* ---------- 逐字扫光 ----------
    只给"当前行"铺两层同字：底层暗 .kk-under + 上层亮 .kk-over，每帧只改 .kk-over 一个
@@ -909,7 +1045,10 @@ async function doSearch(raw) {
     if (my !== seq || !rows || !rows.length) return;
     let added = false;
     rows.forEach(r => { if (!acc.some(x => keyOf(x) === keyOf(r))) { acc.push(r); added = true; } });
-    if (added) { list = acc; render(); markPlaying(); }
+    if (added) {
+      list = acc; render(); markPlaying();
+      if (isMobile()) document.body.classList.add('sheet-open');      // 出结果就升起来给用户挑
+    }
   };
   const autoplay = () => { if (my === seq && idx < 0 && acc.length) play(0); };
 
@@ -947,6 +1086,27 @@ setInterval(() => {
   if (lyrics.length) syncLyrics(t * 1000);
   if (!P.paused && !kkRAF && kkState) kkLoop();
 }, 200);
+
+/* ---------- 手机版歌单浮层 ----------
+   手机屏放不下并排两栏，所以歌词占满作为默认界面，歌单收在底部只露一条把手。
+   把手就是列表标题栏本身，点一下升起/收起；选中一首自动收起。 */
+function isMobile() { return window.matchMedia('(max-width:720px)').matches; }
+function syncSheetMetrics() {
+  // 收起时靠 transform 下移、只留把手，位移量取决于把手实际高度（字号/机型会影响）
+  const h = Math.round($('listHead').getBoundingClientRect().height);
+  if (h) document.documentElement.style.setProperty('--handle-h', h + 'px');
+}
+$('listHead').addEventListener('click', () => document.body.classList.toggle('sheet-open'));
+// 浮层开着时点歌词区域，也当作"要看歌词"，收回去
+$('lyricsPane').addEventListener('click', () => {
+  if (isMobile()) document.body.classList.remove('sheet-open');
+});
+window.addEventListener('resize', () => {
+  syncSheetMetrics();
+  if (!isMobile()) document.body.classList.remove('sheet-open');   // 回到宽屏就别留状态
+});
+syncSheetMetrics();
+setTimeout(syncSheetMetrics, 600);   // 字体加载完再量一次更准
 
 /* ---------- 交互 ---------- */
 $('btnPlay').addEventListener('click', () => { P.paused ? P.play() : P.pause(); setPlayIcon(!P.paused); });

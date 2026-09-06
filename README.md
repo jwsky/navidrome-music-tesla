@@ -191,6 +191,13 @@ romanisation is present the type scale is inverted: the romanisation becomes the
 line, the original is reduced to a reference line above it, and the sweep follows the
 romanisation. Long lines wrap, and the sweep advances across the wrapped rows.
 
+### Scrubbing by lyrics
+
+Dragging the lyrics pauses auto-follow and shows a crosshair line with the timestamp of the
+line at the centre. Playback does **not** jump on drag alone — swiping past a line is far too
+easy to do by accident — so the position is only applied when the button is tapped. Auto-follow
+resumes a few seconds after the last movement, or immediately after a jump.
+
 ## Keyboard shortcuts
 
 | Key | Action |
