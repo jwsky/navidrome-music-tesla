@@ -1026,8 +1026,19 @@ async function searchExt(q) {
   }));
 }
 
-/* AI 纠错（可选）：任何兼容 OpenAI /chat/completions 的服务都行 */
+/* 搜索纠错（可选）。两条路，优先走第一条：
+   ① 自建后端的 /correct —— key 留在服务端，不用暴露在浏览器里，还能做缓存
+   ② 直连任何兼容 OpenAI /chat/completions 的服务
+   后端没实现 /correct（404/超时/形状不对）就自动落到第二条。 */
 async function aiCorrect(q) {
+  if (extBase()) {
+    try {
+      const d = await fetch(extBase() + '/correct?q=' + enc(q)).then(r => r.json());
+      const t = (d && d.corrected || '').trim();
+      if (d && d.changed && t && t !== q && t.length <= 40) return t;
+      if (d && typeof d.changed === 'boolean') return null;   // 后端明确说"不用改"，就别再问模型
+    } catch (e) { /* 没这个端点，继续往下走 */ }
+  }
   if (!(cfg.aiOn && cfg.aiUrl && cfg.aiKey && cfg.aiModel)) return null;
   const url = cfg.aiUrl.trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '') + '/chat/completions';
   const d = await fetch(url, {

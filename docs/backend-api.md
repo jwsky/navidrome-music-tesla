@@ -76,6 +76,31 @@ line character by character; when absent it falls back to highlighting the whole
 If both arrays are supplied the sweep follows `romaChars`, because the romanisation is
 rendered as the primary line whenever it exists.
 
+## GET /correct?q=&lt;query&gt;  (optional)
+
+Lets the backend fix up a query before it is searched — useful for homophone errors from
+voice input. Keeping this server-side means no model API key has to live in the browser, and
+the backend can cache repeated queries.
+
+```jsonc
+{
+  "original":  "告白汽球",
+  "corrected": "告白气球",
+  "changed":   true          // false = leave the query alone
+}
+```
+
+When `changed` is true the client searches for **both** the original and the corrected query
+and keeps both sets of results. If this endpoint is missing, the client falls back to the
+OpenAI-compatible endpoint configured in settings, if any.
+
+## Reserved
+
+Two further endpoints are planned and not implemented yet; they are listed so backends can
+avoid the names. `/asr` will accept captured audio and return a transcript, and `/inbox` will
+let an external trigger (an Apple Shortcut, for instance) queue a query for the player to pick
+up. See the roadmap in the README.
+
 ## Failure handling
 
 If any endpoint is unreachable, times out or returns an unexpected shape, the client skips
