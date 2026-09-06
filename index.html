@@ -173,6 +173,8 @@ body.browsing .seek-cue{display:flex}
 .field input{width:100%;height:42px;padding:0 13px;border-radius:10px;
   background:rgba(255,255,255,.05);border:1px solid var(--line)}
 .field input:focus{outline:0;border-color:rgba(90,200,250,.55)}
+.linklike{color:var(--accent);background:none;border:0;padding:0;font:inherit;
+  text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .two{display:flex;gap:10px}
 .two .field{flex:1 1 0;min-width:0}
 .switch{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--dim);
@@ -339,7 +341,9 @@ body.browsing .seek-cue{display:flex}
     <div class="group">
       <h3>Navidrome 服务器</h3>
       <p class="hint">填你自己的 Navidrome 地址和登录账号。地址填到域名或 IP 就行，
-        <code>/rest</code> 会自动补上。</p>
+        <code>/rest</code> 会自动补上。<br>
+        手头还没有服务器？<button type="button" class="linklike" id="btnDemo">填入官方示例库</button>——
+        Navidrome 官方的公开演示服务器，几百首免费音乐，可以直接试。</p>
       <div class="field">
         <label>服务器地址</label>
         <input id="cfgUrl" type="url" placeholder="https://music.example.com" spellcheck="false">
@@ -581,9 +585,16 @@ function coverOf(it, size) {
 const coverIO = ('IntersectionObserver' in window) ? new IntersectionObserver((es, o) => {
   es.forEach(e => {
     if (!e.isIntersecting) return;
-    const img = e.target;
-    if (img.dataset.src) { img.src = img.dataset.src; delete img.dataset.src; }
+    const img = e.target, url = img.dataset.src;
     o.unobserve(img);
+    if (!url) return;
+    delete img.dataset.src;
+    // 先探测再替换：直接把 url 塞进 <img> 的话，服务端慢或挂了就一直是个空白块
+    // （公开 demo 的 getCoverArt 就出现过整个卡死、curl 40 秒无响应）。
+    // 探测成功才换掉占位图，失败或永远不回就一直显示占位图。
+    const probe = new Image();
+    probe.onload = () => { img.src = url; };
+    probe.src = url;
   });
 }, { root: null, rootMargin: '200px' }) : null;
 
@@ -631,11 +642,11 @@ function render() {
       '<div class="a">' + esc(it.artist) + '</div></div>';
     const cov = coverOf(it);
     const img = li.firstChild;
-    img.onerror = () => { img.onerror = null; img.src = PLACEHOLDER; };
+    img.src = PLACEHOLDER;                    // 先占位，真封面到了再换
     if (cov) {
       if (coverIO) { img.dataset.src = cov; coverIO.observe(img); }
-      else img.src = cov;
-    } else img.src = PLACEHOLDER;
+      else { const probe = new Image(); probe.onload = () => { img.src = cov; }; probe.src = cov; }
+    }
     li.addEventListener('click', () => {
       play(i);
       if (isMobile()) document.body.classList.remove('sheet-open');   // 选好了就缩回去露出歌词
@@ -722,8 +733,9 @@ function showLyricPlaceholder(text) {
       '<div class="np-a">' + esc(it.artist || '') + '</div>' +
       '<div class="np-n">' + esc(text) + '</div></div>';
     const img = e.querySelector('img');
-    img.onerror = () => { img.onerror = null; img.src = PLACEHOLDER; };
-    img.src = coverOf(it, 600) || PLACEHOLDER;
+    img.src = PLACEHOLDER;
+    const cov = coverOf(it, 600);
+    if (cov) { const probe = new Image(); probe.onload = () => { img.src = cov; }; probe.src = cov; }
   } else {
     e.innerHTML = '<div class="np-n">' + esc(text) + '</div>';
   }
@@ -1096,7 +1108,47 @@ function syncSheetMetrics() {
   const h = Math.round($('listHead').getBoundingClientRect().height);
   if (h) document.documentElement.style.setProperty('--handle-h', h + 'px');
 }
-$('listHead').addEventListener('click', () => document.body.classList.toggle('sheet-open'));
+// 把手：点一下开合；也支持手指上滑拉出来、下滑推回去。
+// 拖动时关掉 transition 让浮层贴着手指走，松手再打开做吸附动画。
+(function bindSheetDrag() {
+  const handle = $('listHead'), sheet = document.querySelector('.pane-list');
+  let startY = 0, startT = 0, delta = 0, dragging = false, wasOpen = false, moved = false;
+  const travel = () => sheet.offsetHeight -
+    (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--handle-h')) || 44);
+
+  handle.addEventListener('touchstart', e => {
+    if (!isMobile() || !e.touches.length) return;
+    wasOpen = document.body.classList.contains('sheet-open');
+    startY = e.touches[0].clientY; startT = Date.now();
+    delta = 0; dragging = true; moved = false;
+    sheet.style.transition = 'none';
+  }, { passive: true });
+
+  handle.addEventListener('touchmove', e => {
+    if (!dragging || !e.touches.length) return;
+    delta = e.touches[0].clientY - startY;              // 上滑为负
+    if (Math.abs(delta) > 6) moved = true;
+    const range = travel();
+    sheet.style.transform = 'translateY(' + Math.min(range, Math.max(0, (wasOpen ? 0 : range) + delta)) + 'px)';
+  }, { passive: true });
+
+  const finish = () => {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transition = '';
+    sheet.style.transform = '';                          // 交回给 CSS 类做吸附
+    const v = delta / Math.max(1, Date.now() - startT);   // px/ms，快速一甩也算数
+    const decided = Math.abs(delta) > travel() * 0.25 || Math.abs(v) > 0.5;
+    document.body.classList.toggle('sheet-open', decided ? delta < 0 : wasOpen);
+  };
+  handle.addEventListener('touchend', finish, { passive: true });
+  handle.addEventListener('touchcancel', finish, { passive: true });
+
+  handle.addEventListener('click', () => {
+    if (moved) { moved = false; return; }                // 刚才是拖动，别再 toggle 一次
+    document.body.classList.toggle('sheet-open');
+  });
+})();
 // 浮层开着时点歌词区域，也当作"要看歌词"，收回去
 $('lyricsPane').addEventListener('click', () => {
   if (isMobile()) document.body.classList.remove('sheet-open');
@@ -1162,6 +1214,14 @@ function readForm() {
   }
   return out;
 }
+// 官方公开演示服务器（navidrome.org/demo 上写明可用于测试 Subsonic 客户端）。
+// 填进去顺手测一次，省得用户还要自己点"测试连接"。
+$('btnDemo').addEventListener('click', () => {
+  $('cfgUrl').value = 'https://demo.navidrome.org';
+  $('cfgUser').value = 'demo';
+  $('cfgPass').value = 'demo';
+  $('btnTest').click();
+});
 $('btnSettings').addEventListener('click', openSettings);
 $('btnCancel').addEventListener('click', () => $('mask').classList.remove('open'));
 $('mask').addEventListener('click', e => { if (e.target === $('mask')) $('mask').classList.remove('open'); });

@@ -79,6 +79,12 @@ no account and no telemetry.
 | Username | Your Navidrome username. |
 | Password | Your Navidrome password. |
 
+No server of your own yet? The settings panel has a **fill in the official demo** link that
+loads Navidrome's public demo instance and tests it in one go, so you can see what the client
+does before setting anything up. That server is provided by the Navidrome project and is
+explicitly offered for trying Subsonic clients; it carries a few hundred freely licensed
+tracks and its settings are read-only.
+
 Use **Test connection** to verify the settings before saving. On success it reports the
 server type and version.
 
@@ -176,6 +182,28 @@ One short completion is issued per search, capped at 40 output tokens. The key i
 An additional source can be attached by pointing this field at a service that implements
 three endpoints. See [docs/backend-api.md](docs/backend-api.md) for the contract. If a
 backend supplies word-level lyric timings, the karaoke sweep described below is used.
+
+## On a phone
+
+There is not enough width for two panes, so the lyrics take the whole screen and the library
+becomes a sheet at the bottom. Collapsed, only its header shows.
+
+| | |
+| --- | --- |
+| ![Sheet](docs/mobile-sheet.png) | ![Player](docs/mobile-player.png) |
+
+Swipe up on the header — or tap it — to raise the sheet over most of the screen; swipe back
+down or pick a track to drop it again. A quick flick counts, and a drag that does not travel
+far enough springs back rather than toggling.
+
+Rows are one line each — artwork, title, source badge and artist — so roughly seventeen fit on
+screen at once. Titles that do not fit scroll sideways, and the right edge fades only when
+there is actually more text to reveal.
+
+The screenshots above run against the public demo library. Its cover art endpoint was not
+responding at the time, which is why the placeholder artwork is showing — covers are loaded
+after the real image has been fetched successfully, so a slow or broken server degrades to the
+placeholder instead of leaving empty boxes.
 
 ## Lyrics
 
