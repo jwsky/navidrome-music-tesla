@@ -12,16 +12,20 @@ browsers. One HTML file — no build step, no server-side component, no dependen
 - **Single file.** `index.html` contains all markup, styles and scripts. Nothing to compile
   and nothing to install.
 - **No backend.** The page talks to your Navidrome server directly from the browser over the
-  Subsonic API.
+  Subsonic API. Navidrome is the music server you already use; this client adds no service.
 - **Designed for a car screen.** Large touch targets, tall list rows, a centred lyrics pane
   that scrolls itself, and album art used as the background.
 - **Optional plugins** for YouTube search, AI query correction and a self-hosted search
   backend. All are disabled by default and issue no requests until configured.
+- **Bedtime playlist.** A moon button opens your own playlist from a local cache. Long-press
+  a library track to add or remove it; Chinese, English and instrumental tracks all work.
+- **Most played, with some discovery.** Every ten default rows contain the next seven tracks
+  by play count and three lower-play discoveries. The same rule applies to the bedtime list.
 - **Not tied to Tesla.** It was developed and tuned against the Tesla browser, but nothing in
   it is vehicle-specific. Any in-car, embedded or kiosk browser that meets the requirements
   below will run it — Android Automotive head units, aftermarket units, tablets mounted in a
   dash, or an ordinary desktop browser.
-- **Light enough for weak hardware.** A single ~48 KB document, no framework and no runtime
+- **Light enough for weak hardware.** A single HTML document, no framework and no runtime
   dependencies. See [Performance](#performance).
 
 ## Why a separate client
@@ -59,8 +63,9 @@ Download [`index.html`](index.html) and serve it from anywhere static:
 - Any directory served by the web server already running on the Navidrome host
 - An internal nginx or Caddy instance
 
-The file can also be opened directly from disk (`file://`), though some browsers restrict
-`localStorage` in that context, which means settings may not persist.
+The file can also be opened directly from disk (`file://`). Some browsers restrict
+`localStorage` or cross-origin requests in that context; if settings do not persist or the
+connection is blocked, use static hosting. There is still no application backend to run.
 
 ## Configuration
 
@@ -68,8 +73,9 @@ Open the settings panel with the gear icon in the top-right corner.
 
 ![Settings](docs/settings.png)
 
-All values are stored in `localStorage` on the device that entered them. There is no sync,
-no account and no telemetry.
+Settings are stored in `localStorage` on the device that entered them. This page has no
+separate account or telemetry. Play counts and playlist edits are sent to your Navidrome
+server so that its other clients can see them too.
 
 ### Navidrome (required)
 
@@ -200,10 +206,71 @@ Rows are one line each — artwork, title, source badge and artist — so roughl
 screen at once. Titles that do not fit scroll sideways, and the right edge fades only when
 there is actually more text to reveal.
 
-The screenshots above run against the public demo library. Its cover art endpoint was not
-responding at the time, which is why the placeholder artwork is showing — covers are loaded
-after the real image has been fetched successfully, so a slow or broken server degrades to the
-placeholder instead of leaving empty boxes.
+The screenshots use an example library and illustration artwork, with no private account
+or collection. Covers replace the built-in placeholder only after the image has loaded
+successfully, so a slow or broken server leaves a placeholder rather than an empty box.
+
+## Bedtime playlist
+
+The moon button opens the playlist named **宝宝哄睡**. To use another name, such as `Bedtime`,
+set **Settings → 哄睡歌单 → 歌单名称**. The client selects a playlist with that exact name
+owned by your account. Use a unique name; another user's public playlist is not edited.
+
+1. Load your library with your own Navidrome account.
+2. Long-press a track, right-click it on a desktop, or press Shift+F10 on a focused row.
+3. Choose **收藏到哄睡歌单** to add it. The first addition creates the playlist on Navidrome;
+   subsequent additions keep the existing entries.
+4. Choose **从哄睡歌单解除收藏** to remove it. The audio file stays in the library, and a
+   currently playing track keeps playing.
+
+| Playlist | Track menu |
+| --- | --- |
+| ![Bedtime playlist](docs/bedtime.png) | ![Long-press menu](docs/song-menu.png) |
+
+The playlist is cached by server, username and playlist name. Opening it reads that cache
+immediately, without starting a remote playlist or library query. Covers and audio still
+load from Navidrome. On a first visit the cache is empty until
+the initial background read completes. A background refresh runs every five minutes and
+when returning to the page after at least a minute; a failed read keeps the last snapshot.
+The cache contains song metadata, not downloaded audio, and changing accounts uses a
+separate cache.
+
+**Finding tracks.** In the bedtime view, **从曲库挑选** opens suggestions drawn from your
+own library. Titles and album or genre names are matched against lullabies, familiar gentle
+songs and quiet piano collections. English, Chinese and instrumental tracks are supported;
+examples include *Edelweiss*, 《平凡的一天》 and *Mia & Sebastian's Theme*. This is a metadata
+filter, not audio analysis: versions and arrangements vary, so listen before adding them.
+Nothing is automatically added, downloaded or bought. No music collection or personal
+playlist is bundled with the client.
+
+**File deletion.** The menu shows original-file deletion as unavailable. The standard
+[Subsonic API](https://opensubsonic.netlify.app/docs/endpoints/) used here has no endpoint for
+deleting library audio files. Delete a file with the tools managing your music folder, then
+let Navidrome rescan. Removing a playlist entry is a separate operation. This client
+installs no file-management service.
+
+## Default order and play counts
+
+The library and bedtime playlist use the same default order. Each complete block of ten
+contains the next seven tracks ranked by Navidrome's `playCount` and three discoveries from
+the lower-play part of the list. The positions are **popular, popular, popular, discovery,
+popular, popular, discovery, popular, popular, discovery**. Tracks are not repeated. Tied
+counts are resolved by last played time, then date added; discovery stays stable during
+one page session and is reshuffled on reload. The order button switches the library to
+**最近添加** (recently added) and back.
+
+All ranking happens in the browser after library metadata has loaded. The library is read
+in pages, so collections larger than 500 tracks are included. Search results keep their
+search order instead of using this mix.
+
+For a library track, the client submits one `scrobble` after actually played sections total
+at least **half the track or four minutes, whichever is shorter**. Seeking over the halfway
+point does not count skipped audio; time spent paused does not count either. Listening to
+the same section again within one play does not count that section twice. Loading a track
+again starts a new play. After a confirmed submission, the client reads the updated count
+from Navidrome. External YouTube or plugin tracks are not submitted as library plays.
+Reporting requires a connection; this page does not queue or automatically retry an
+uncertain submission. Counts recorded by other clients follow those clients' own rules.
 
 ## Lyrics
 
@@ -239,7 +306,7 @@ resumes a few seconds after the last movement, or immediately after a jump.
 In-car browsers generally run on modest hardware and an unreliable connection, so the client
 is built to stay cheap at runtime:
 
-- One document, roughly 48 KB, parsed in a single pass. No framework, no bundler runtime, no
+- One HTML document, parsed in a single pass. No framework, no bundler runtime, no
   external requests for code or fonts — the only network traffic is your own server's API,
   cover art and audio.
 - The DOM stays small. Only the current lyric line carries the two-layer sweep markup;
@@ -269,10 +336,16 @@ is built to stay cheap at runtime:
 
 ## Privacy
 
-There is no backend, no analytics and no outbound reporting. Every request originates from
+There is no application backend or analytics. Every request originates from
 your browser and goes to a destination you configured: your Navidrome server, and — only if
 you enable them — the third-party endpoints for the optional plugins. Settings, including
-credentials and API keys, are held in `localStorage` on that device only.
+credentials and API keys, are held in `localStorage` on that device only. The bedtime cache
+is also local. Playlist changes and qualifying playback timestamps are sent to your
+Navidrome server. No settings export or private song list is included in this repository.
+
+A static page cannot conceal a key from the browser using it. Enter your own keys in
+settings; do not paste them into `index.html` or publish browser storage, network captures
+or screenshots containing filled credentials.
 
 ## Browser support
 
@@ -303,6 +376,9 @@ Until then, the on-screen search box covers the same ground.
 
 Issues and pull requests are welcome. The entire application is `index.html`; there is no
 build tooling to set up — edit the file and reload the page.
+
+The cache and ordering checks use Node's built-in test runner: `node --test tests/*.test.cjs`.
+They require no application build or runtime dependency.
 
 ## Disclaimer
 

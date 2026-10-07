@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="color-scheme" content="dark">
+<meta name="referrer" content="no-referrer">
 <title>Navidrome Music · Tesla</title>
 <style>
 :root{
@@ -58,7 +59,7 @@ button{cursor:pointer;border:0;background:none}
 
 .main{flex:1 1 auto;display:flex;min-height:0;gap:14px;padding:0 16px}
 .pane-list{flex:0 0 38%;max-width:460px;min-width:0;display:flex;flex-direction:column;min-height:0}
-.pane-lyrics{flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:center;position:relative}
+.pane-lyrics{flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
 
 .list-head{display:flex;align-items:baseline;justify-content:space-between;
   padding:2px 4px 8px;color:var(--dim);font-size:13px}
@@ -70,6 +71,14 @@ button{cursor:pointer;border:0;background:none}
   cursor:pointer;transition:background .12s}
 .song:active{background:var(--card-hi)}
 .song.on{background:var(--card-hi)}
+.song{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.song:focus-visible,.icon-btn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.song .favorite{flex:0 0 auto;color:#f4a9bd;font-size:14px}
+.list-tools{display:flex;align-items:center;gap:10px;padding:4px 4px 10px;font-size:12px;color:var(--dim)}
+.list-tools[hidden]{display:none}
+.list-tools button{color:var(--accent);padding:4px 0;white-space:nowrap}
+.list-empty{padding:20px 12px;color:var(--dim);font-size:14px;line-height:1.7}
+.icon-btn.active{border-color:var(--accent);color:var(--accent)}
 .song img{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:0 0 auto;
   background:rgba(255,255,255,.07)}
 .song .meta{min-width:0;flex:1 1 auto}
@@ -159,10 +168,16 @@ body.browsing .seek-cue{display:flex}
 .mask{position:fixed;inset:0;background:rgba(0,0,0,.62);backdrop-filter:blur(6px);
   z-index:50;display:none;align-items:center;justify-content:center;padding:20px}
 .mask.open{display:flex}
-.sheet{width:min(680px,100%);max-height:88vh;overflow-y:auto;background:#14181c;
+.sheet{width:min(680px,100%);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;background:#14181c;
   border:1px solid var(--line);border-radius:18px;padding:22px 24px 18px}
 .sheet h2{margin:0 0 4px;font-size:19px}
 .sheet .sub{color:var(--dim);font-size:13px;margin-bottom:18px}
+.song-menu{width:min(420px,100%)}
+.song-menu h2{overflow-wrap:anywhere}
+.song-menu .menu-action{display:block;width:100%;text-align:left;padding:13px 12px;border-radius:10px;margin:4px 0;background:var(--card)}
+.song-menu button:disabled{opacity:.4;cursor:default}
+.song-menu .menu-note{color:var(--dim);font-size:12px;line-height:1.6;margin:12px 0}
+.song-menu .menu-status{font-size:13px;color:var(--accent);min-height:20px}
 .group{border-top:1px solid var(--line);padding-top:15px;margin-top:15px}
 .group:first-of-type{border-top:0;padding-top:0;margin-top:0}
 .group h3{margin:0 0 3px;font-size:14.5px;display:flex;align-items:center;gap:8px}
@@ -218,13 +233,18 @@ body.browsing .seek-cue{display:flex}
   .ctl{width:40px;height:40px}.ctl.play{width:46px;height:46px}
   .player{padding:10px 12px 14px;gap:10px}
   .searchwrap.open #q{width:min(56vw,260px)}
+  body.search-open .brand{display:none}
+  body.search-open .topbar-right{width:100%;min-width:0}
+  body.search-open .searchwrap{flex:1;min-width:0}
+  body.search-open .searchwrap.open #q{width:100%;min-width:0;flex:1}
+  .topbar-right>.icon-btn,.searchwrap>.icon-btn{flex:0 0 40px}
 
   /* 浮层用 absolute 而不是 fixed：.main 正好从顶栏下延伸到播放条上沿，
      它的 overflow:hidden 会把收起时移下去的部分裁掉。用 fixed 会脱离这个
      裁切，收起后列表会从播放条底下透出来。 */
   .pane-list{
     position:absolute;left:0;right:0;bottom:0;
-    flex:none;width:100%;max-width:none;height:72dvh;
+    flex:none;width:100%;max-width:none;height:72vh;height:72svh;height:72dvh;max-height:100%;
     z-index:20;
     padding:0;
     border-radius:16px 16px 0 0;
@@ -270,6 +290,7 @@ body.browsing .seek-cue{display:flex}
   .ly{font-size:17px}.ly.on{font-size:20px}
   .player{padding:8px 14px 10px}
 }
+@media (max-width:360px){.brand span:last-child{display:none}}
 </style>
 </head>
 <body>
@@ -287,7 +308,10 @@ body.browsing .seek-cue{display:flex}
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
         </button>
       </div>
-      <button class="icon-btn" id="btnShuffle" title="随机 / 顺序" aria-label="随机或顺序">
+      <button class="icon-btn" id="btnBedtime" title="宝宝哄睡" aria-label="宝宝哄睡" aria-pressed="false">
+        <svg viewBox="0 0 24 24"><path d="M20.8 14.5A9 9 0 0 1 9.5 3.2 9 9 0 1 0 20.8 14.5z"/><path d="M18 2v6m-3-3h6"/></svg>
+      </button>
+      <button class="icon-btn" id="btnShuffle" title="常听与发现 / 最近添加" aria-label="切换曲库排序">
         <svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
       </button>
       <button class="icon-btn" id="btnSettings" title="设置" aria-label="设置">
@@ -299,6 +323,7 @@ body.browsing .seek-cue{display:flex}
   <div class="main">
     <div class="pane-list">
       <div class="list-head" id="listHead"><b id="listTitle">曲库</b><span id="listCount"></span></div>
+      <div class="list-tools" id="bedTools" hidden><button id="btnCandidates">从曲库挑选</button><span id="bedHint">长按歌曲收藏或解除收藏</span></div>
       <div class="songlist" id="songlist"></div>
     </div>
     <div class="pane-lyrics" id="lyricsPane">
@@ -333,10 +358,23 @@ body.browsing .seek-cue{display:flex}
 
 <div id="toast"></div>
 
+<div class="mask" id="songMask">
+  <div class="sheet song-menu" role="dialog" aria-modal="true" aria-labelledby="songMenuTitle">
+    <h2 id="songMenuTitle"></h2>
+    <div class="sub" id="songMenuArtist"></div>
+    <button class="menu-action" id="songDelete" disabled>删除原始文件 · 本页面不支持</button>
+    <button class="menu-action" id="songFavorite">收藏到哄睡歌单</button>
+    <button class="menu-action" id="songUnfavorite">从哄睡歌单解除收藏</button>
+    <p class="menu-note" id="songMenuNote">删除原始文件需要到音乐库所在设备操作。解除收藏会保留音频文件。</p>
+    <div class="menu-status" id="songMenuStatus" role="status" aria-live="polite"></div>
+    <div class="actions"><button class="btn" id="songMenuClose">关闭</button></div>
+  </div>
+</div>
+
 <div class="mask" id="mask">
   <div class="sheet">
     <h2>设置</h2>
-    <div class="sub">全部保存在这台设备的浏览器里，不会上传到任何地方。</div>
+    <div class="sub">设置保存在这台设备的浏览器里，仅用于连接你配置的服务。</div>
 
     <div class="group">
       <h3>Navidrome 服务器</h3>
@@ -352,6 +390,14 @@ body.browsing .seek-cue{display:flex}
         <div class="field"><label>用户名</label><input id="cfgUser" type="text" autocomplete="username" spellcheck="false"></div>
         <div class="field"><label>密码</label><input id="cfgPass" type="password" autocomplete="current-password"></div>
       </div>
+    </div>
+
+    <div class="group">
+      <h3>哄睡歌单</h3>
+      <p class="hint">使用你自己的 Navidrome 歌单；首次收藏时自动创建。月亮按钮从本地缓存打开，
+        不需要额外服务。也可以先在候选列表里试听，再长按收藏。</p>
+      <div class="field"><label>歌单名称（你的账号下的歌单）</label>
+        <input id="cfgBedName" type="text" placeholder="宝宝哄睡" spellcheck="false"></div>
     </div>
 
     <div class="group">
@@ -401,6 +447,106 @@ body.browsing .seek-cue{display:flex}
     </div>
   </div>
 </div>
+
+<script id="libraryTools">
+(function (root) {
+'use strict';
+
+function normalize(songs) {
+  const seen = new Set();
+  return (Array.isArray(songs) ? songs : []).filter(s => {
+    if (!s || s.id == null || !String(s.id) || seen.has(String(s.id))) return false;
+    seen.add(String(s.id)); return true;
+  }).map(s => ({ src:'lib', id:String(s.id), title:String(s.title || '(无标题)'),
+    artist:String(s.artist || ''), album:String(s.album || ''), duration:Number(s.duration) || 0,
+    coverArt:s.coverArt, created:s.created, playCount:Math.max(0, Number(s.playCount) || 0),
+    played:s.played || null, genre:String(s.genre || ''), tags:[] }));
+}
+
+// Reserve all popularity slots before choosing discoveries; never steal a later top-seven slot.
+function recommend(songs, priorities = new Map()) {
+  const pattern = [1, 1, 1, 0, 1, 1, 0, 1, 1, 0];
+  const count = s => Math.max(0, Number(s.playCount) || 0);
+  const date = v => Date.parse(v) || 0;
+  const sorted = songs.slice().sort((a, b) => count(b) - count(a)
+    || date(b.played) - date(a.played) || date(b.created) - date(a.created)
+    || String(a.id).localeCompare(String(b.id)));
+  const n = Math.floor(sorted.length / 10) * 7
+    + pattern.slice(0, sorted.length % 10).reduce((sum, slot) => sum + slot, 0);
+  const popular = sorted.slice(0, n), discovery = sorted.slice(n);
+  discovery.forEach(s => { if (!priorities.has(s.id)) priorities.set(s.id, Math.random()); });
+  discovery.sort((a, b) => priorities.get(a.id) - priorities.get(b.id)
+    || String(a.id).localeCompare(String(b.id)));
+  let p = 0, d = 0;
+  return sorted.map((_, i) => pattern[i % 10] ? popular[p++] : discovery[d++]);
+}
+
+// Suggestions use metadata, not audio analysis; users listen before adding a track.
+function candidates(songs) {
+  const album = /lullab|bedtime|sleepy|peaceful piano|soft piano|solo piano|摇篮|哄睡|舒缓钢琴|钢琴小品/i;
+  const title = /edelweiss|twinkle.*little star|rock.a.bye|hush.*little baby|all through the night|lavender.s blue|you are my sunshine|moon river|over the rainbow|what a wonderful world|can.t help falling in love|mia.*sebastian.*theme|lullab|berceuse|平凡的一天|雪绒花|虫儿飞|小白船|摇篮曲|送别|晚安|月光曲|八音盒/i;
+  const loud = /\b(remix|live|edm|metal|hard rock|dance mix)\b|现场|演唱会|电音|重金属|交响曲/i;
+  return songs.filter(s => !loud.test([s.title, s.album, s.genre].join(' '))
+    && (album.test([s.album, s.genre].join(' ')) || title.test(s.title)));
+}
+
+function playedSeconds(ranges) {
+  let total = 0;
+  for (let i = 0; i < ranges.length; i++) total += ranges.end(i) - ranges.start(i);
+  return total;
+}
+
+class PlaylistCache {
+  constructor(key, onChange) {
+    this.key = key; this.onChange = onChange;
+    this.id = ''; this.songs = []; this.ids = new Set();
+    this.revision = 0; this.loading = null; this.lastSync = 0;
+    try {
+      const saved = JSON.parse(root.localStorage.getItem(key) || 'null');
+      if (saved && Array.isArray(saved.songs)) this.replace(saved.songs, String(saved.id || ''), false);
+    } catch (_) {}
+  }
+  has(id) { return this.ids.has(String(id)); }
+  tag(s) { return Object.assign({}, s, {tags:this.has(s.id) ? ['bedtime'] : []}); }
+  save() {
+    try { root.localStorage.setItem(this.key, JSON.stringify({id:this.id, songs:this.songs})); } catch (_) {}
+  }
+  replace(songs, id = this.id, notify = true) {
+    this.id = id;
+    this.songs = normalize(songs).map(s => Object.assign(s, {tags:['bedtime']}));
+    this.ids = new Set(this.songs.map(s => s.id));
+    this.save(); if (notify && this.onChange) this.onChange();
+  }
+  updateStats(songs) {
+    const byId = new Map(songs.map(s => [s.id, s]));
+    let changed = false;
+    const updated = this.songs.map(s => {
+      const fresh = byId.get(s.id);
+      if (!fresh || fresh.playCount === undefined) return s;
+      const count = Math.max(0, Number(fresh.playCount) || 0), played = fresh.played || null;
+      if (count === s.playCount && played === s.played) return s;
+      changed = true; return Object.assign({}, s, {playCount:count, played:played});
+    });
+    if (changed) { ++this.revision; this.replace(updated); }
+  }
+  refresh(loader) {
+    if (this.loading) return this.loading;
+    const revision = this.revision;
+    let stale = false;
+    this.loading = Promise.resolve().then(loader).then(snapshot => {
+      if (revision !== this.revision) { stale = true; return false; }
+      this.lastSync = Date.now(); this.replace(snapshot.songs, snapshot.id); return true;
+    }).finally(() => {
+      this.loading = null;
+      if (stale) this.refresh(loader).catch(() => {});
+    });
+    return this.loading;
+  }
+}
+
+root.MusicLibrary = {normalize, recommend, candidates, playedSeconds, PlaylistCache};
+})(window);
+</script>
 
 <script>
 (function () {
@@ -488,7 +634,7 @@ function md5(input) {
 
 /* ---------- 配置：只存在本机 localStorage ---------- */
 const CFG_KEY = 'navidrome-tesla.config.v1';
-const DEFAULTS = { url:'', user:'', pass:'', yt:'', aiOn:false, aiUrl:'', aiKey:'', aiModel:'', ext:'' };
+const DEFAULTS = { url:'', user:'', pass:'', yt:'', aiOn:false, aiUrl:'', aiKey:'', aiModel:'', ext:'', bedName:'宝宝哄睡' };
 let cfg = Object.assign({}, DEFAULTS);
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(CFG_KEY) || '{}')); } catch (e) {}
 const saveCfg = () => { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) { toast('浏览器不让保存设置（可能是隐私模式）'); } };
@@ -496,27 +642,37 @@ const configured = () => !!(cfg.url && cfg.user && cfg.pass);
 
 /* ---------- Subsonic 客户端 ---------- */
 const CLIENT = 'navidrome-tesla';
-function restBase() {
-  let u = (cfg.url || '').trim().replace(/\/+$/, '');
+function restBase(config = cfg) {
+  let u = (config.url || '').trim().replace(/\/+$/, '');
   if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
   return u.replace(/\/rest$/i, '') + '/rest';
 }
-function auth() {
+function auth(config = cfg) {
   // salt 每次请求都换一个，密码本身不出现在 URL 里
-  const salt = Math.random().toString(36).slice(2, 12);
-  return 'u=' + enc(cfg.user) + '&t=' + md5(cfg.pass + salt) + '&s=' + salt +
+  const salt = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+  return 'u=' + enc(config.user) + '&t=' + md5(config.pass + salt) + '&s=' + salt +
          '&v=1.16.1&c=' + CLIENT + '&f=json';
 }
-const sub = (path, extra) => restBase() + '/' + path + '?' + auth() + (extra ? '&' + extra : '');
+const sub = (path, extra, config = cfg) => restBase(config) + '/' + path + '?' + auth(config) + (extra ? '&' + extra : '');
 
-async function subGet(path, extra) {
-  const r = await fetch(sub(path, extra), { cache: 'no-store' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const body = (await r.json())['subsonic-response'];
-  if (!body) throw new Error('返回格式不对，确认地址是 Navidrome 吗？');
-  if (body.status === 'failed') throw new Error((body.error && body.error.message) || '请求被拒绝');
-  return body;
+async function subGet(path, extra, config = cfg, method = 'GET') {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  const options = { cache:'no-store', method, signal:controller.signal };
+  try {
+    if (method === 'POST') options.body = new URLSearchParams(auth(config) + (extra ? '&' + extra : ''));
+    const r = await fetch(method === 'POST' ? restBase(config) + '/' + path : sub(path, extra, config), options);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const body = (await r.json())['subsonic-response'];
+    if (!body) throw new Error('返回格式不对，确认地址是 Navidrome 吗？');
+    if (body.status !== 'ok') throw new Error((body.error && body.error.message) || '请求被拒绝');
+    return body;
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('请求超时，结果尚未确认');
+    throw e;
+  } finally { clearTimeout(timer); }
 }
+const subPost = (path, params, config = cfg) => subGet(path, new URLSearchParams(params).toString(), config, 'POST');
 
 /* ---------- 播放状态 ---------- */
 const audio = new Audio();
@@ -525,10 +681,17 @@ let list = [];              // 当前列表（统一结构）
 let library = [];           // 缓存的整库
 let libLoaded = false;
 let idx = -1;               // 当前播放下标
-let shuffled = true;        // 默认随机，开车时不用挑
+let recentOrder = false;    // 默认常听与发现，按钮切换到最近添加
 let seq = 0;                // 搜索序号，防止慢响应覆盖新结果
+let generation = 0, playSeq = 0, playingItem = null, listenSession = null;
+let view = 'library', libraryLoading = null;
+let bedtime, menuItem = null, menuBusy = false, menuOpener = null;
+let press = null, pressTimer = null, suppressClickUntil = 0;
+let suppressLongPressClick = false;
+const discoveryPriorities = new Map();
+const MusicLibrary = window.MusicLibrary;
 
-const cur = () => list[idx] || null;
+const cur = () => playingItem;
 const keyOf = it => it ? (it.src || '') + '|' + (it.id || it.videoId || '') : '';
 
 /* 所有来源最终都落到同一个 <audio>：本地是 Subsonic 的 stream，
@@ -563,8 +726,7 @@ function setBackground(url) {
 
 /* ---------- 曲库 ---------- */
 function fromSubsonic(s) {
-  return { src:'lib', id:s.id, title:s.title || '(无标题)', artist:s.artist || '',
-           album:s.album || '', duration:s.duration || 0, coverArt:s.coverArt, created:s.created };
+  return bedtime.tag(MusicLibrary.normalize([s])[0]);
 }
 /* 没有封面时的占位图。用内联 SVG 而不是外链图片，保持整个文件零外部依赖。 */
 const PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
@@ -600,30 +762,108 @@ const coverIO = ('IntersectionObserver' in window) ? new IntersectionObserver((e
 
 async function loadLibrary(force) {
   if (libLoaded && !force) { applyOrder(); return; }
+  const my = seq, gen = generation, config = Object.assign({}, cfg);
   try {
-    const b = await subGet('search3', 'query=&songCount=500&albumCount=0&artistCount=0');
-    const songs = (b.searchResult3 && b.searchResult3.song) || [];
-    library = songs.map(fromSubsonic);
-    libLoaded = true;
-    if (!library.length) toast('连上了，但曲库是空的');
-    applyOrder();
+    if (!libraryLoading) {
+      const job = (async () => {
+        const songs = [], seen = new Set();
+        for (let offset = 0; ; offset += 500) {
+          const b = await subGet('search3', 'query=&songCount=500&songOffset=' + offset + '&albumCount=0&artistCount=0', config);
+          if (gen !== generation) return;
+          const batch = (b.searchResult3 && b.searchResult3.song) || [];
+          const fresh = batch.filter(s => !seen.has(String(s.id)));
+          if (batch.length && !fresh.length) throw new Error('服务器没有正确返回曲库分页');
+          fresh.forEach(s => { seen.add(String(s.id)); songs.push(s); });
+          if (batch.length < 500) break;
+        }
+        library = MusicLibrary.normalize(songs).map(s => bedtime.tag(s));
+        libLoaded = true; bedtime.updateStats(library);
+        if (!library.length) toast('连上了，但曲库是空的');
+      })();
+      libraryLoading = job;
+      job.finally(() => { if (libraryLoading === job) libraryLoading = null; }).catch(() => {});
+    }
+    await libraryLoading;
+    if (gen === generation && my === seq) applyOrder();
   } catch (e) {
+    if (gen !== generation) return;
     toast('连不上 Navidrome：\n' + e.message);
     openSettings();
   }
 }
 function applyOrder() {
-  const lib = library.slice();
-  if (shuffled) for (let i = lib.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [lib[i], lib[j]] = [lib[j], lib[i]]; }
-  else lib.sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
+  view = 'library';
+  const lib = recentOrder ? library.slice().sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0))
+    : MusicLibrary.recommend(library, discoveryPriorities);
+  $('btnShuffle').title = recentOrder ? '最近添加 · 点击切回常听与发现' : '常听与发现 · 点击按最近添加排序';
   setList(lib, '曲库');
 }
+
+/* ---------- 哄睡：账号隔离的本地标签，后台同步原生歌单 ---------- */
+function bedtimeName(config = cfg) { return (config.bedName || '').trim() || '宝宝哄睡'; }
+function setupBedtime() {
+  const key = 'navidrome-tesla.bedtime.v1:' + md5(restBase() + '\n' + cfg.user + '\n' + bedtimeName());
+  const cache = new MusicLibrary.PlaylistCache(key, () => { if (bedtime === cache) syncBedtimeTags(); });
+  bedtime = cache;
+  $('btnBedtime').title = bedtimeName(); $('btnBedtime').setAttribute('aria-label', bedtimeName());
+}
+function bedtimeSongs() {
+  const byId = new Map(library.map(s => [s.id, s]));
+  return MusicLibrary.recommend(bedtime.songs.map(s => bedtime.tag(byId.get(s.id) || s)), discoveryPriorities);
+}
+function syncBedtimeTags() {
+  library = library.map(s => bedtime.tag(s));
+  list = list.map(s => s.src === 'lib' ? bedtime.tag(s) : s);
+  Array.from($('songlist').children).forEach((row, i) => {
+    const heart = row.querySelector('.favorite');
+    if (heart && list[i]) heart.hidden = list[i].src !== 'lib' || !bedtime.has(list[i].id);
+  });
+  if (view === 'bedtime' && !menuItem && !press && audio.paused) setList(bedtimeSongs(), bedtimeName());
+}
+async function ownedBedtime(config) {
+  const data = await subGet('getPlaylists', '', config);
+  return ((data.playlists && data.playlists.playlist) || [])
+    .filter(p => p.name === bedtimeName(config) && p.owner === config.user)
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)))[0] || null;
+}
+function refreshBedtime() {
+  if (!configured()) return Promise.resolve();
+  const cache = bedtime, config = Object.assign({}, cfg);
+  return cache.refresh(async () => {
+    const meta = await ownedBedtime(config);
+    if (!meta) return {id:'', songs:[]};
+    const data = await subGet('getPlaylist', 'id=' + enc(meta.id), config);
+    const stats = new Map(cache.songs.concat(cache === bedtime ? library : []).map(s => [s.id, s]));
+    return {id:String(meta.id), songs:((data.playlist && data.playlist.entry) || [])
+      .map(s => Object.assign({}, stats.get(String(s.id)) || {}, s))};
+  }).catch(() => { /* Offline reads keep the last confirmed snapshot. */ });
+}
+function showBedtime() {
+  ++seq; view = 'bedtime';
+  $('searchwrap').classList.remove('open'); document.body.classList.remove('search-open');
+  setList(bedtimeSongs(), bedtimeName());
+  if (isMobile()) document.body.classList.add('sheet-open');
+}
+function showCandidates() {
+  if (!libLoaded) { toast('曲库仍在加载，稍后再试'); return; }
+  ++seq; view = 'candidates';
+  setList(MusicLibrary.recommend(MusicLibrary.candidates(library), discoveryPriorities), '哄睡候选');
+  if (isMobile()) document.body.classList.add('sheet-open');
+}
+setInterval(refreshBedtime, 300000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && bedtime && Date.now() - bedtime.lastSync > 60000) refreshBedtime();
+});
 
 /* ---------- 列表渲染 ---------- */
 const BADGE = { lib:'<span class="badge b-lib">库</span>', yt:'<span class="badge b-yt">YT</span>', ext:'<span class="badge b-ext">外部</span>' };
 function setList(items, title) {
-  list = items; idx = -1;
+  list = items; idx = list.findIndex(it => keyOf(it) === keyOf(cur()));
   $('listTitle').textContent = title || '曲库';
+  $('bedTools').hidden = view !== 'bedtime' && view !== 'candidates';
+  $('bedHint').textContent = view === 'candidates' ? '按歌名与专辑筛选，请试听后长按收藏' : '长按歌曲收藏或解除收藏';
+  $('btnBedtime').classList.toggle('active', view === 'bedtime' || view === 'candidates');
+  $('btnBedtime').setAttribute('aria-pressed', String(view === 'bedtime' || view === 'candidates'));
   render();
 }
 function render() {
@@ -631,15 +871,23 @@ function render() {
   const box = $('songlist');
   // 旧行的 img 还被 observer 攥着，不断开的话反复搜索会越积越多
   if (coverIO) coverIO.disconnect();
-  if (!list.length) { box.innerHTML = ''; return; }
+  if (!list.length) {
+    box.innerHTML = '<div class="list-empty">' + (view === 'bedtime'
+      ? '暂无收藏。可以从曲库挑选，也可以长按任意曲库歌曲收藏到哄睡歌单。首次使用会在后台读取你的歌单。'
+      : view === 'candidates' ? '没有匹配的候选。可以在曲库中试听，再长按收藏。' : '暂无歌曲') + '</div>';
+    return;
+  }
   const frag = document.createDocumentFragment();
   list.forEach((it, i) => {
     const li = document.createElement('div');
     li.className = 'song' + (i === idx ? ' on' : '');
+    li.dataset.index = i; li.dataset.key = keyOf(it); li.tabIndex = 0; li.setAttribute('role', 'button');
+    li.setAttribute('aria-label', it.title + ' — ' + it.artist);
     li.innerHTML =
       '<img alt="" decoding="async">' +
       '<div class="meta"><div class="t">' + esc(it.title) + (BADGE[it.src] || '') + '</div>' +
-      '<div class="a">' + esc(it.artist) + '</div></div>';
+      '<div class="a">' + esc(it.artist) + '</div></div>' +
+      '<span class="favorite" aria-label="已收藏到哄睡歌单"' + (it.src === 'lib' && bedtime.has(it.id) ? '' : ' hidden') + '>♥</span>';
     const cov = coverOf(it);
     const img = li.firstChild;
     img.src = PLACEHOLDER;                    // 先占位，真封面到了再换
@@ -648,14 +896,116 @@ function render() {
       else { const probe = new Image(); probe.onload = () => { img.src = cov; }; probe.src = cov; }
     }
     li.addEventListener('click', () => {
+      if (Date.now() < suppressClickUntil || menuItem) return;
       play(i);
       if (isMobile()) document.body.classList.remove('sheet-open');   // 选好了就缩回去露出歌词
+    });
+    li.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); li.click(); }
+      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); openSongMenu(it, li); }
     });
     frag.appendChild(li);
   });
   box.innerHTML = '';
   box.appendChild(frag);
 }
+
+/* ---------- 长按 / 右键菜单：原生歌单操作，绝不把移出歌单当作删文件 ---------- */
+function syncSongMenu() {
+  const local = menuItem && menuItem.src === 'lib', favorite = local && bedtime.has(menuItem.id);
+  $('songFavorite').disabled = menuBusy || !local || favorite;
+  $('songUnfavorite').disabled = menuBusy || !local || !favorite;
+  $('songMenuClose').disabled = menuBusy;
+  if (!menuBusy) $('songMenuStatus').textContent = !local ? '先将歌曲导入自己的 Navidrome 曲库后再收藏'
+    : favorite ? '已收藏到 ' + bedtimeName() : '尚未收藏到 ' + bedtimeName();
+}
+function openSongMenu(it, opener) {
+  menuItem = it; menuOpener = opener; menuBusy = false;
+  suppressClickUntil = Date.now() + 900;
+  $('songMenuTitle').textContent = it.title; $('songMenuArtist').textContent = it.artist;
+  $('songMask').classList.add('open'); syncSongMenu(); $('songMenuClose').focus();
+}
+function closeSongMenu() {
+  if (menuBusy) return;
+  menuItem = null; $('songMask').classList.remove('open');
+  if (view === 'bedtime') setList(bedtimeSongs(), bedtimeName()); else render();
+  if (menuOpener && menuOpener.isConnected) menuOpener.focus(); else $('btnBedtime').focus();
+}
+async function setBedtimeFavorite(favorite) {
+  if (menuBusy || !menuItem || menuItem.src !== 'lib') return;
+  const it = menuItem, cache = bedtime, config = Object.assign({}, cfg), gen = generation;
+  const check = () => { if (gen !== generation || cache !== bedtime) throw new Error('连接设置已改变，请重试'); };
+  menuBusy = true; syncSongMenu(); $('songMenuStatus').textContent = '正在同步…';
+  try {
+    let meta = await ownedBedtime(config); check();
+    let entries = [];
+    if (meta) {
+      const data = await subGet('getPlaylist', 'id=' + enc(meta.id), config); check();
+      entries = (data.playlist && data.playlist.entry) || [];
+    }
+    if (!meta && favorite) {
+      const data = await subPost('createPlaylist', [['name', bedtimeName(config)], ['songId', it.id]], config); check();
+      if (!data.playlist || !data.playlist.id) throw new Error('服务器未返回新歌单');
+      meta = data.playlist; entries = data.playlist.entry || [it];
+      await subPost('updatePlaylist', [['playlistId', meta.id], ['public', 'false']], config); check();
+    } else if (meta) {
+      const positions = entries.map((s, i) => String(s.id) === it.id ? i : -1).filter(i => i >= 0);
+      if (favorite && !positions.length) {
+        await subPost('updatePlaylist', [['playlistId', meta.id], ['songIdToAdd', it.id]], config); check();
+        entries = entries.concat([it]);
+      } else if (!favorite && positions.length) {
+        await subPost('updatePlaylist', [['playlistId', meta.id]].concat(positions.reverse().map(i => ['songIndexToRemove', String(i)])), config); check();
+        entries = entries.filter(s => String(s.id) !== it.id);
+      }
+    }
+    const stats = new Map(cache.songs.concat(library).map(s => [s.id, s]));
+    ++cache.revision;
+    cache.replace(entries.map(s => Object.assign({}, stats.get(String(s.id)) || {}, s)), meta ? String(meta.id) : '');
+    menuBusy = false; closeSongMenu();
+    toast(favorite ? '已收藏到 ' + bedtimeName() : '已解除收藏，音频文件保留');
+    refreshBedtime();
+  } catch (e) {
+    menuBusy = false; syncSongMenu(); $('songMenuStatus').textContent = '未确认成功：' + e.message;
+    refreshBedtime();
+  }
+}
+function cancelPress() { clearTimeout(pressTimer); pressTimer = null; press = null; }
+// A touch released after opening the dialog may synthesize a click on its new backdrop.
+// Consume that click; a fresh pointer-down or keyboard action belongs to the user instead.
+document.addEventListener('pointerdown', () => { suppressLongPressClick = false; }, true);
+document.addEventListener('keydown', () => { suppressLongPressClick = false; }, true);
+document.addEventListener('click', e => {
+  if (!suppressLongPressClick) return;
+  suppressLongPressClick = false; e.preventDefault(); e.stopImmediatePropagation();
+}, true);
+$('songlist').addEventListener('pointerdown', e => {
+  if (e.button !== 0 || !e.isPrimary) return;
+  const row = e.target.closest('.song'); if (!row) return;
+  const it = list[Number(row.dataset.index)]; if (!it) return;
+  cancelPress(); press = {x:e.clientX, y:e.clientY};
+  pressTimer = setTimeout(() => { suppressLongPressClick = true; openSongMenu(it, row); }, 550);
+});
+document.addEventListener('pointermove', e => {
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) cancelPress();
+}, {passive:true});
+['pointerup', 'pointercancel'].forEach(type => document.addEventListener(type, cancelPress, {passive:true}));
+$('songlist').addEventListener('scroll', cancelPress, {passive:true});
+$('songlist').addEventListener('contextmenu', e => {
+  const row = e.target.closest('.song'); if (!row) return;
+  e.preventDefault(); cancelPress(); openSongMenu(list[Number(row.dataset.index)], row);
+});
+$('songMenuClose').addEventListener('click', closeSongMenu);
+$('songMask').addEventListener('click', e => { if (e.target === $('songMask')) closeSongMenu(); });
+$('songFavorite').addEventListener('click', () => setBedtimeFavorite(true));
+$('songUnfavorite').addEventListener('click', () => setBedtimeFavorite(false));
+$('songMask').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); closeSongMenu(); }
+  if (e.key !== 'Tab') return;
+  const buttons = Array.from($('songMask').querySelectorAll('button:not(:disabled)'));
+  const first = buttons[0], last = buttons[buttons.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 function markPlaying() {
   const kids = $('songlist').children;
   for (let i = 0; i < kids.length; i++) kids[i].classList.toggle('on', i === idx);
@@ -683,25 +1033,32 @@ async function streamUrl(it) {
 async function play(i) {
   const it = list[i];
   if (!it) return;
+  recordPlay(); listenSession = null;
+  const my = ++playSeq, gen = generation, config = Object.assign({}, cfg);
+  playingItem = it;
   idx = i;
   markPlaying();
   $('npName').textContent = it.title + (it.artist ? ' — ' + it.artist : '');
   setBackground(coverOf(it, 600));
-  loadLyrics(it);
+  loadLyrics(it, my);
 
   // YouTube 要先换一个直链，慢的时候得让用户知道在干嘛
   if (it.src === 'yt') toast('正在取 YouTube 音频…', 8000);
-  try {
-    audio.src = await streamUrl(it);
-    audio.load();
+  const startStream = async url => {
+    if (my !== playSeq) return;
+    audio.src = url; audio.load();
+    listenSession = it.src === 'lib' ? {item:it, src:audio.src, started:null, reported:false, config, gen} : null;
     await audio.play();
-    setPlayIcon(true);
+    if (my === playSeq) setPlayIcon(true);
+  };
+  try {
+    await startStream(await streamUrl(it));
   } catch (e) {
+    if (my !== playSeq) return;
     // 原始格式（flac 等）浏览器放不了时，退回让服务端转码成 mp3
     if (it.src === 'lib' && audio.src.indexOf('format=raw') !== -1) {
       try {
-        audio.src = sub('stream', 'id=' + enc(it.id) + '&format=mp3&maxBitRate=320');
-        audio.load(); await audio.play(); setPlayIcon(true); return;
+        await startStream(sub('stream', 'id=' + enc(it.id) + '&format=mp3&maxBitRate=320', config)); return;
       } catch (e2) {}
     }
     toast('放不了这首：' + (e && e.message ? e.message : it.title));
@@ -714,10 +1071,30 @@ function setPlayIcon(playing) {
 }
 audio.addEventListener('play',  () => setPlayIcon(true));
 audio.addEventListener('pause', () => setPlayIcon(false));
+function recordPlay() {
+  const session = listenSession, duration = P.dur;
+  if (!session || session.reported || !session.started || session.src !== audio.src || !duration) return;
+  // played is a union of sections actually heard; seeking and paused time add nothing.
+  if (MusicLibrary.playedSeconds(audio.played) < Math.min(duration / 2, 240)) return;
+  session.reported = true; // A timeout may have succeeded remotely: do not auto-resubmit.
+  subPost('scrobble', [['id', session.item.id], ['time', String(session.started)], ['submission', 'true']], session.config)
+    .then(() => subGet('getSong', 'id=' + enc(session.item.id), session.config))
+    .then(data => {
+      if (session.gen !== generation || !data.song || String(data.song.id) !== session.item.id) return;
+      const fresh = fromSubsonic(data.song);
+      library = library.map(s => s.id === fresh.id ? fresh : s);
+      list = list.map(s => s.src === 'lib' && s.id === fresh.id ? fresh : s);
+      bedtime.updateStats([fresh]);
+    }).catch(() => { /* A future library read restores confirmed server statistics. */ });
+}
+audio.addEventListener('playing', () => {
+  if (listenSession && listenSession.src === audio.src && !listenSession.started) listenSession.started = Date.now();
+});
+['timeupdate', 'pause', 'ended'].forEach(type => audio.addEventListener(type, recordPlay));
 audio.addEventListener('ended', () => next());
 
 function next() { if (list.length) play((idx + 1) % list.length); }
-function prev() { if (list.length) play((idx - 1 + list.length) % list.length); }
+function prev() { if (list.length) play(((idx < 0 ? list.length : idx) - 1 + list.length) % list.length); }
 
 /* ---------- 歌词 ---------- */
 let lyrics = [], lineIdx = -1;
@@ -741,7 +1118,7 @@ function showLyricPlaceholder(text) {
   }
   e.style.display = '';
 }
-async function loadLyrics(it) {
+async function loadLyrics(it, my) {
   lyrics = []; lineIdx = -1; kkState = null; kkPrev = -1;
   endBrowse();                      // 换歌了，退出手动浏览态
   showLyricPlaceholder('歌词加载中…');
@@ -762,10 +1139,12 @@ async function loadLyrics(it) {
       const r = await fetch(extBase() + '/lyric?' + new URLSearchParams(it.play || { id: it.id })).then(r => r.json());
       lines = (r && r.lines) || [];
     }
+    if (my !== playSeq) return;
     if (!lines.length) { showLyricPlaceholder('这首没有歌词'); lyrics = NO_LYRIC; return; }
     lyrics = lines;
     paintLyrics();
   } catch (e) {
+    if (my !== playSeq) return;
     showLyricPlaceholder('这首没有歌词');
     lyrics = NO_LYRIC;
   }
@@ -1063,13 +1442,14 @@ async function doSearch(raw) {
   if (!configured()) { openSettings(); return; }
 
   const my = ++seq, acc = [];
+  view = 'search';
   setList(acc, '搜索「' + q0 + '」');
   const push = rows => {
     if (my !== seq || !rows || !rows.length) return;
     let added = false;
     rows.forEach(r => { if (!acc.some(x => keyOf(x) === keyOf(r))) { acc.push(r); added = true; } });
     if (added) {
-      list = acc; render(); markPlaying();
+      list = acc; idx = list.findIndex(it => keyOf(it) === keyOf(cur())); render(); markPlaying();
       if (isMobile()) document.body.classList.add('sheet-open');      // 出结果就升起来给用户挑
     }
   };
@@ -1181,24 +1561,29 @@ $('bar').addEventListener('click', e => {
   P.seek(clamp((e.clientX - r.left) / r.width, 0, 1) * d);
 });
 $('btnShuffle').addEventListener('click', () => {
-  shuffled = !shuffled;
-  toast(shuffled ? '随机播放' : '按入库时间倒序');
+  ++seq; recentOrder = !recentOrder;
+  toast(recentOrder ? '最近添加' : '常听与发现 · 每 10 首含 7 首常听与 3 首发现');
   if (libLoaded) applyOrder(); else loadLibrary();
 });
+$('btnBedtime').addEventListener('click', () => { if (configured()) showBedtime(); else openSettings(); });
+$('btnCandidates').addEventListener('click', showCandidates);
 $('btnSearch').addEventListener('click', () => {
   const w = $('searchwrap');
   w.classList.toggle('open');
+  document.body.classList.toggle('search-open', w.classList.contains('open'));
   if (w.classList.contains('open')) $('q').focus();
 });
 $('q').addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const v = e.target.value;
     $('searchwrap').classList.remove('open');
+    document.body.classList.remove('search-open');
     e.target.blur();
     doSearch(v);
   }
 });
 document.addEventListener('keydown', e => {
+  if (menuItem || $('mask').classList.contains('open')) return;
   if (/^(INPUT|TEXTAREA)$/.test((e.target.tagName || ''))) return;
   if (e.code === 'Space') { e.preventDefault(); P.paused ? P.play() : P.pause(); setPlayIcon(!P.paused); }
   if (e.key === 'ArrowRight') next();
@@ -1207,7 +1592,7 @@ document.addEventListener('keydown', e => {
 
 /* ---------- 设置 ---------- */
 const FIELDS = { url:'cfgUrl', user:'cfgUser', pass:'cfgPass', yt:'cfgYt',
-                 aiOn:'cfgAiOn', aiUrl:'cfgAiUrl', aiKey:'cfgAiKey', aiModel:'cfgAiModel', ext:'cfgExt' };
+                 aiOn:'cfgAiOn', aiUrl:'cfgAiUrl', aiKey:'cfgAiKey', aiModel:'cfgAiModel', ext:'cfgExt', bedName:'cfgBedName' };
 function openSettings() {
   for (const k in FIELDS) {
     const el = $(FIELDS[k]);
@@ -1221,7 +1606,7 @@ function readForm() {
   const out = {};
   for (const k in FIELDS) {
     const el = $(FIELDS[k]);
-    out[k] = el.type === 'checkbox' ? el.checked : el.value.trim();
+    out[k] = el.type === 'checkbox' ? el.checked : k === 'pass' ? el.value : el.value.trim();
   }
   return out;
 }
@@ -1237,30 +1622,34 @@ $('btnSettings').addEventListener('click', openSettings);
 $('btnCancel').addEventListener('click', () => $('mask').classList.remove('open'));
 $('mask').addEventListener('click', e => { if (e.target === $('mask')) $('mask').classList.remove('open'); });
 $('btnTest').addEventListener('click', async () => {
-  const out = $('testout'), old = Object.assign({}, cfg);
-  Object.assign(cfg, readForm());
+  const out = $('testout'), config = Object.assign({}, cfg, readForm());
   out.className = ''; out.textContent = '连接中…';
   try {
-    const b = await subGet('ping');
+    const b = await subGet('ping', '', config);
     out.className = 'ok';
     out.textContent = '连上了 · ' + (b.type || 'subsonic') + ' ' + (b.serverVersion || '');
   } catch (e) {
     out.className = 'err';
     out.textContent = '失败：' + e.message;
   }
-  Object.assign(cfg, old);   // 测试不落盘，保存才落
 });
 $('btnSave').addEventListener('click', () => {
+  recordPlay(); listenSession = null; ++playSeq; ++generation; ++seq;
+  audio.pause(); audio.removeAttribute('src'); audio.load();
+  playingItem = null; library = []; libraryLoading = null; libLoaded = false;
+  discoveryPriorities.clear(); recentOrder = false; view = 'library';
   Object.assign(cfg, readForm());
   saveCfg();
+  setupBedtime(); setList([], '曲库');
+  showLyricPlaceholder('选一首歌开始');
   $('mask').classList.remove('open');
-  libLoaded = false;
-  if (configured()) loadLibrary(true);
+  if (configured()) { loadLibrary(true); refreshBedtime(); }
   else toast('至少要填 Navidrome 地址、用户名和密码');
 });
 
 /* ---------- 启动 ---------- */
-if (configured()) loadLibrary();
+setupBedtime();
+if (configured()) { loadLibrary(); refreshBedtime(); }
 else { openSettings(); showLyricPlaceholder('先在右上角设置里填上你的 Navidrome'); }
 
 })();

@@ -2,6 +2,10 @@
 
 [English](backend-api.md) · [中文](backend-api.zh-CN.md)
 
+This integration is optional. Library playback, bedtime playlists, their local cache,
+play-count reporting and recommendation order use the Subsonic API directly and require
+none of the endpoints below. No additional service is needed for those features.
+
 When a URL is configured under **Settings → Self-hosted search backend**, the client issues
 three request types against it. Implementing all three is the complete integration;
 implementing only `/search` and `/play` also works, with those tracks simply having no
