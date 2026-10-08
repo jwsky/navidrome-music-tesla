@@ -5,7 +5,7 @@
 A single-file web client for [Navidrome](https://www.navidrome.org/), built for in-car
 browsers. One HTML file — no build step, no server-side component, no dependencies.
 
-![Player](docs/player.png)
+![Auld Lang Syne with timed lyrics and album covers](docs/player.png)
 
 ## Overview
 
@@ -206,9 +206,14 @@ Rows are one line each — artwork, title, source badge and artist — so roughl
 screen at once. Titles that do not fit scroll sideways, and the right edge fades only when
 there is actually more text to reveal.
 
-The screenshots use an example library and illustration artwork, with no private account
-or collection. Covers replace the built-in placeholder only after the image has loaded
-successfully, so a slow or broken server leaves a placeholder rather than an empty box.
+The screenshots show selected library tracks with real album artwork and timed lyrics.
+The playing track is **Auld Lang Syne**, performed by Mairi Campbell and David Francis;
+the displayed lyric excerpt follows Robert Burns's
+[public-domain text (Library of Congress)](https://www.loc.gov/item/00001778/).
+The recording and album artwork retain their respective rights. Account details are omitted.
+
+Covers replace the built-in placeholder only after the image has loaded successfully, so
+a slow or broken server leaves a placeholder rather than an empty box.
 
 ## Bedtime playlist
 
