@@ -23,10 +23,10 @@ and desktop browsers. One HTML file — no build step, no server-side component,
   to fold it away. Playback controls stay within reach at the bottom.
 - **Optional plugins** for YouTube search, AI query correction and a self-hosted search
   backend. All are disabled by default and issue no requests until configured.
-- **Bedtime playlist.** A moon button opens your own playlist from a local cache. Long-press
+- **Native favorites.** A heart button opens your Navidrome-starred songs from a local cache. Long-press
   a library track to add or remove it; Chinese, English and instrumental tracks all work.
 - **Most played, with some discovery.** Every ten default rows contain the next seven tracks
-  by play count and three lower-play discoveries. The same rule applies to the bedtime list.
+  by play count and three lower-play discoveries. The same rule applies to favorites.
 - **Not tied to Tesla.** It was developed and tuned against the Tesla browser, but nothing in
   it is vehicle-specific. Any in-car, embedded or kiosk browser that meets the requirements
   below will run it — Android Automotive head units, aftermarket units, tablets mounted in a
@@ -218,7 +218,7 @@ states.
   filling the screen with separate cards.
 - **Controls stay visible.** The playback bar and library handle fit within the visible
   viewport as mobile browser toolbars expand or collapse.
-- **Quick bedtime access.** Once synced, the moon button opens the cached playlist immediately.
+- **Quick favorites access.** Once synced, the heart button opens cached native favorites immediately.
   Long-press a track to manage its membership.
 
 The same HTML file works on a phone, tablet or car screen, with no app to install and no
@@ -243,32 +243,39 @@ at full resolution.
 Covers replace the built-in placeholder only after the image has loaded successfully, so
 a slow or broken server leaves a placeholder rather than an empty box.
 
-## Bedtime playlist
+## Favorites (native Navidrome stars)
 
-The moon button opens the playlist named **宝宝哄睡**. To use another name, such as `Bedtime`,
-set **Settings → 哄睡歌单 → 歌单名称**. The client selects a playlist with that exact name
-owned by your account. Use a unique name; another user's public playlist is not edited.
+The heart button opens the **songs starred by your signed-in Navidrome account**, using
+`getStarred2.song`. No named playlist, bundled collection or extra backend is required.
+Track hearts set in other Navidrome clients appear here too. Starring an album or artist
+does not automatically star every track it contains.
 
-1. Load your library with your own Navidrome account.
-2. Long-press a track, right-click it on a desktop, or press Shift+F10 on a focused row.
-3. Choose **收藏到哄睡歌单** to add it. The first addition creates the playlist on Navidrome;
-   subsequent additions keep the existing entries.
-4. Choose **从哄睡歌单解除收藏** to remove it. The audio file stays in the library, and a
-   currently playing track keeps playing.
+1. Connect your own Navidrome account.
+2. Long-press a library track, right-click it, or press Shift+F10 on a focused row.
+3. Choose **加入最爱** to call native `star`; the client reads the song back to confirm.
+4. Choose **取消最爱** to call `unstar`. The audio file, ordinary playlists and current
+   playback are preserved.
 
-| Playlist | Track menu |
-| --- | --- |
-| ![Bedtime playlist](docs/bedtime.png) | ![Long-press menu](docs/song-menu.png) |
+**Settings → 最爱 → 入口显示名称** changes the label only: `Favorites`, `Bedtime favorites`
+or another name all open the same account's starred songs. The label never chooses a playlist
+or filters music. Each account has one starred-song collection; use ordinary Navidrome
+playlists for independently managed bedtime, nursery or pop collections.
 
-The playlist is cached by server, username and playlist name. Opening it reads that cache
-immediately, without starting a remote playlist or library query. Covers and audio still
-load from Navidrome. On a first visit the cache is empty until
-the initial background read completes. A background refresh runs every five minutes and
-when returning to the page after at least a minute; a failed read keeps the last snapshot.
-The cache contains song metadata, not downloaded audio, and changing accounts uses a
-separate cache.
+Metadata is cached by server and username, independently of the label. Opening the heart
+reads the cache immediately; a first visit waits for the initial background sync. Refreshes
+run every five minutes and on returning after at least a minute. Failed reads preserve the
+last confirmed snapshot. Artwork and audio still load from Navidrome. Switching accounts
+uses a separate cache.
 
-**Finding tracks.** In the bedtime view, **从曲库挑选** opens suggestions drawn from your
+**Upgrading an older installation.** Earlier “bedtime favorites” were entries in an ordinary
+playlist, not native stars. Upgrading does not delete or automatically rewrite those playlists.
+Open your old playlist in Navidrome and star the tracks you want to keep, or add them individually
+through this client's track menu. Existing native stars are preserved.
+
+[Navidrome favorites](https://www.navidrome.org/docs/overview/) ·
+[getStarred2 API](https://opensubsonic.netlify.app/docs/endpoints/getstarred2/)
+
+**Finding tracks.** In the favorites view, **从曲库挑选** opens suggestions drawn from your
 own library. Titles and album or genre names are matched against lullabies, familiar gentle
 songs and quiet piano collections. English, Chinese and instrumental tracks are supported;
 examples include *Edelweiss*, 《平凡的一天》 and *Mia & Sebastian's Theme*. This is a metadata
@@ -284,7 +291,7 @@ installs no file-management service.
 
 ## Default order and play counts
 
-The library and bedtime playlist use the same default order. Each complete block of ten
+The library and favorites use the same default order. Each complete block of ten
 contains the next seven tracks ranked by Navidrome's `playCount` and three discoveries from
 the lower-play part of the list. The positions are **popular, popular, popular, discovery,
 popular, popular, discovery, popular, popular, discovery**. Tracks are not repeated. Tied
@@ -372,7 +379,7 @@ is built to stay cheap at runtime:
 There is no application backend or analytics. Every request originates from
 your browser and goes to a destination you configured: your Navidrome server, and — only if
 you enable them — the third-party endpoints for the optional plugins. Settings, including
-credentials and API keys, are held in `localStorage` on that device only. The bedtime cache
+credentials and API keys, are held in `localStorage` on that device only. The favorites cache
 is also local. Playlist changes and qualifying playback timestamps are sent to your
 Navidrome server. No settings export or private song list is included in this repository.
 
@@ -404,6 +411,13 @@ recognition. The implementation is expected to reuse the existing AI correction 
 the [self-hosted backend](docs/backend-api.md) acting as the endpoint the Shortcut posts to.
 
 Until then, the on-screen search box covers the same ground.
+
+## Private deployments and the GitHub version
+
+Both use the same native favorite source: `getStarred2.song` and `star/unstar`. The public
+default label is “最爱”; a private deployment may display “哄睡最爱”. Labels and connection
+settings do not change the source. This repository contains no private songs, accounts or
+playlist IDs, and installs no original-file deletion service. See the [development contract](docs/development.md).
 
 ## Contributing
 

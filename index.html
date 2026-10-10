@@ -308,8 +308,8 @@ body.browsing .seek-cue{display:flex}
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
         </button>
       </div>
-      <button class="icon-btn" id="btnBedtime" title="宝宝哄睡" aria-label="宝宝哄睡" aria-pressed="false">
-        <svg viewBox="0 0 24 24"><path d="M20.8 14.5A9 9 0 0 1 9.5 3.2 9 9 0 1 0 20.8 14.5z"/><path d="M18 2v6m-3-3h6"/></svg>
+      <button class="icon-btn" id="btnBedtime" title="最爱" aria-label="最爱" aria-pressed="false">
+        <svg viewBox="0 0 24 24"><path d="M12 21l-8.5-8.2A5.5 5.5 0 0 1 12 5a5.5 5.5 0 0 1 8.5 7.8z"/></svg>
       </button>
       <button class="icon-btn" id="btnShuffle" title="常听与发现 / 最近添加" aria-label="切换曲库排序">
         <svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
@@ -363,8 +363,8 @@ body.browsing .seek-cue{display:flex}
     <h2 id="songMenuTitle"></h2>
     <div class="sub" id="songMenuArtist"></div>
     <button class="menu-action" id="songDelete" disabled>删除原始文件 · 本页面不支持</button>
-    <button class="menu-action" id="songFavorite">收藏到哄睡歌单</button>
-    <button class="menu-action" id="songUnfavorite">从哄睡歌单解除收藏</button>
+    <button class="menu-action" id="songFavorite">加入最爱</button>
+    <button class="menu-action" id="songUnfavorite">取消最爱</button>
     <p class="menu-note" id="songMenuNote">删除原始文件需要到音乐库所在设备操作。解除收藏会保留音频文件。</p>
     <div class="menu-status" id="songMenuStatus" role="status" aria-live="polite"></div>
     <div class="actions"><button class="btn" id="songMenuClose">关闭</button></div>
@@ -393,11 +393,11 @@ body.browsing .seek-cue{display:flex}
     </div>
 
     <div class="group">
-      <h3>哄睡歌单</h3>
-      <p class="hint">使用你自己的 Navidrome 歌单；首次收藏时自动创建。月亮按钮从本地缓存打开，
-        不需要额外服务。也可以先在候选列表里试听，再长按收藏。</p>
-      <div class="field"><label>歌单名称（你的账号下的歌单）</label>
-        <input id="cfgBedName" type="text" placeholder="宝宝哄睡" spellcheck="false"></div>
+      <h3>最爱</h3>
+      <p class="hint">与 Navidrome 和其他客户端里的歌曲心形收藏同步。无需创建歌单。
+        只收藏歌曲会加入这里；收藏专辑或歌手不会自动收藏其中的歌曲。</p>
+      <div class="field"><label>入口显示名称（只改文字，例如“哄睡最爱”）</label>
+        <input id="cfgBedName" type="text" placeholder="最爱" spellcheck="false"></div>
     </div>
 
     <div class="group">
@@ -634,7 +634,7 @@ function md5(input) {
 
 /* ---------- 配置：只存在本机 localStorage ---------- */
 const CFG_KEY = 'navidrome-tesla.config.v1';
-const DEFAULTS = { url:'', user:'', pass:'', yt:'', aiOn:false, aiUrl:'', aiKey:'', aiModel:'', ext:'', bedName:'宝宝哄睡' };
+const DEFAULTS = { url:'', user:'', pass:'', yt:'', aiOn:false, aiUrl:'', aiKey:'', aiModel:'', ext:'', favoriteName:'最爱' };
 let cfg = Object.assign({}, DEFAULTS);
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(CFG_KEY) || '{}')); } catch (e) {}
 const saveCfg = () => { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) { toast('浏览器不让保存设置（可能是隐私模式）'); } };
@@ -800,10 +800,11 @@ function applyOrder() {
   setList(lib, '曲库');
 }
 
-/* ---------- 哄睡：账号隔离的本地标签，后台同步原生歌单 ---------- */
-function bedtimeName(config = cfg) { return (config.bedName || '').trim() || '宝宝哄睡'; }
+/* ---------- 最爱：账号隔离的本地快照，唯一来源是 Navidrome 歌曲 star ---------- */
+// The legacy bedtime function/DOM names are internal; display text never selects a playlist.
+function bedtimeName(config = cfg) { return (config.favoriteName || '').trim() || '最爱'; }
 function setupBedtime() {
-  const key = 'navidrome-tesla.bedtime.v1:' + md5(restBase() + '\n' + cfg.user + '\n' + bedtimeName());
+  const key = 'navidrome-tesla.favorites.v1:' + md5(restBase() + '\n' + cfg.user);
   const cache = new MusicLibrary.PlaylistCache(key, () => { if (bedtime === cache) syncBedtimeTags(); });
   bedtime = cache;
   $('btnBedtime').title = bedtimeName(); $('btnBedtime').setAttribute('aria-label', bedtimeName());
@@ -821,21 +822,13 @@ function syncBedtimeTags() {
   });
   if (view === 'bedtime' && !menuItem && !press && audio.paused) setList(bedtimeSongs(), bedtimeName());
 }
-async function ownedBedtime(config) {
-  const data = await subGet('getPlaylists', '', config);
-  return ((data.playlists && data.playlists.playlist) || [])
-    .filter(p => p.name === bedtimeName(config) && p.owner === config.user)
-    .sort((a, b) => String(a.id).localeCompare(String(b.id)))[0] || null;
-}
 function refreshBedtime() {
   if (!configured()) return Promise.resolve();
   const cache = bedtime, config = Object.assign({}, cfg);
   return cache.refresh(async () => {
-    const meta = await ownedBedtime(config);
-    if (!meta) return {id:'', songs:[]};
-    const data = await subGet('getPlaylist', 'id=' + enc(meta.id), config);
+    const data = await subGet('getStarred2', '', config);
     const stats = new Map(cache.songs.concat(cache === bedtime ? library : []).map(s => [s.id, s]));
-    return {id:String(meta.id), songs:((data.playlist && data.playlist.entry) || [])
+    return {id:'starred', songs:((data.starred2 && data.starred2.song) || [])
       .map(s => Object.assign({}, stats.get(String(s.id)) || {}, s))};
   }).catch(() => { /* Offline reads keep the last confirmed snapshot. */ });
 }
@@ -874,7 +867,7 @@ function render() {
   if (coverIO) coverIO.disconnect();
   if (!list.length) {
     box.innerHTML = '<div class="list-empty">' + (view === 'bedtime'
-      ? '暂无收藏。可以从曲库挑选，也可以长按任意曲库歌曲收藏到哄睡歌单。首次使用会在后台读取你的歌单。'
+      ? '暂无最爱。长按曲库歌曲加入最爱，或在 Navidrome 给歌曲点心形。首次使用会在后台同步。'
       : view === 'candidates' ? '没有匹配的候选。可以在曲库中试听，再长按收藏。' : '暂无歌曲') + '</div>';
     return;
   }
@@ -888,7 +881,7 @@ function render() {
       '<img alt="" decoding="async">' +
       '<div class="meta"><div class="t">' + esc(it.title) + (BADGE[it.src] || '') + '</div>' +
       '<div class="a">' + esc(it.artist) + '</div></div>' +
-      '<span class="favorite" aria-label="已收藏到哄睡歌单"' + (it.src === 'lib' && bedtime.has(it.id) ? '' : ' hidden') + '>♥</span>';
+      '<span class="favorite" aria-label="Navidrome 最爱歌曲"' + (it.src === 'lib' && bedtime.has(it.id) ? '' : ' hidden') + '>♥</span>';
     const cov = coverOf(it);
     const img = li.firstChild;
     img.src = PLACEHOLDER;                    // 先占位，真封面到了再换
@@ -911,7 +904,7 @@ function render() {
   box.appendChild(frag);
 }
 
-/* ---------- 长按 / 右键菜单：原生歌单操作，绝不把移出歌单当作删文件 ---------- */
+/* ---------- 长按 / 右键菜单：原生 star/unstar，解除收藏保留原文件和普通歌单 ---------- */
 function syncSongMenu() {
   const local = menuItem && menuItem.src === 'lib', favorite = local && bedtime.has(menuItem.id);
   $('songFavorite').disabled = menuBusy || !local || favorite;
@@ -938,30 +931,13 @@ async function setBedtimeFavorite(favorite) {
   const check = () => { if (gen !== generation || cache !== bedtime) throw new Error('连接设置已改变，请重试'); };
   menuBusy = true; syncSongMenu(); $('songMenuStatus').textContent = '正在同步…';
   try {
-    let meta = await ownedBedtime(config); check();
-    let entries = [];
-    if (meta) {
-      const data = await subGet('getPlaylist', 'id=' + enc(meta.id), config); check();
-      entries = (data.playlist && data.playlist.entry) || [];
-    }
-    if (!meta && favorite) {
-      const data = await subPost('createPlaylist', [['name', bedtimeName(config)], ['songId', it.id]], config); check();
-      if (!data.playlist || !data.playlist.id) throw new Error('服务器未返回新歌单');
-      meta = data.playlist; entries = data.playlist.entry || [it];
-      await subPost('updatePlaylist', [['playlistId', meta.id], ['public', 'false']], config); check();
-    } else if (meta) {
-      const positions = entries.map((s, i) => String(s.id) === it.id ? i : -1).filter(i => i >= 0);
-      if (favorite && !positions.length) {
-        await subPost('updatePlaylist', [['playlistId', meta.id], ['songIdToAdd', it.id]], config); check();
-        entries = entries.concat([it]);
-      } else if (!favorite && positions.length) {
-        await subPost('updatePlaylist', [['playlistId', meta.id]].concat(positions.reverse().map(i => ['songIndexToRemove', String(i)])), config); check();
-        entries = entries.filter(s => String(s.id) !== it.id);
-      }
-    }
-    const stats = new Map(cache.songs.concat(library).map(s => [s.id, s]));
+    await subPost(favorite ? 'star' : 'unstar', [['id', it.id]], config); check();
+    const data = await subGet('getSong', 'id=' + enc(it.id), config); check();
+    if (!data.song || !!data.song.starred !== favorite) throw new Error('收藏状态尚未确认，请稍后再试');
+    const entries = cache.songs.filter(s => s.id !== it.id);
+    if (favorite) entries.push(Object.assign({}, it, data.song));
     ++cache.revision;
-    cache.replace(entries.map(s => Object.assign({}, stats.get(String(s.id)) || {}, s)), meta ? String(meta.id) : '');
+    cache.replace(entries, 'starred');
     menuBusy = false; closeSongMenu();
     toast(favorite ? '已收藏到 ' + bedtimeName() : '已解除收藏，音频文件保留');
     refreshBedtime();
@@ -1653,7 +1629,7 @@ document.addEventListener('keydown', e => {
 
 /* ---------- 设置 ---------- */
 const FIELDS = { url:'cfgUrl', user:'cfgUser', pass:'cfgPass', yt:'cfgYt',
-                 aiOn:'cfgAiOn', aiUrl:'cfgAiUrl', aiKey:'cfgAiKey', aiModel:'cfgAiModel', ext:'cfgExt', bedName:'cfgBedName' };
+                 aiOn:'cfgAiOn', aiUrl:'cfgAiUrl', aiKey:'cfgAiKey', aiModel:'cfgAiModel', ext:'cfgExt', favoriteName:'cfgBedName' };
 function openSettings() {
   for (const k in FIELDS) {
     const el = $(FIELDS[k]);

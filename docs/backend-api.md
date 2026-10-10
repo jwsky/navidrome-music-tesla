@@ -2,7 +2,7 @@
 
 [English](backend-api.md) · [中文](backend-api.zh-CN.md)
 
-This integration is optional. Library playback, bedtime playlists, their local cache,
+This integration is optional. Library playback, native favorites, their local cache,
 play-count reporting and recommendation order use the Subsonic API directly and require
 none of the endpoints below. No additional service is needed for those features.
 
