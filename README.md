@@ -2,10 +2,14 @@
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-A single-file web client for [Navidrome](https://www.navidrome.org/), built for in-car
-browsers. One HTML file — no build step, no server-side component, no dependencies.
+A single-file web client for [Navidrome](https://www.navidrome.org/), built for car, phone
+and desktop browsers. One HTML file — no build step, no server-side component, no dependencies.
 
 ![Auld Lang Syne with timed lyrics and album covers](docs/player.png)
+
+| Phone · library expanded | Phone · library collapsed |
+| --- | --- |
+| ![Phone with the song list open](docs/mobile-sheet.png) | ![Phone showing lyrics with the song list collapsed](docs/mobile-player.png) |
 
 ## Overview
 
@@ -15,6 +19,8 @@ browsers. One HTML file — no build step, no server-side component, no dependen
   Subsonic API. Navidrome is the music server you already use; this client adds no service.
 - **Designed for a car screen.** Large touch targets, tall list rows, a centred lyrics pane
   that scrolls itself, and album art used as the background.
+- **Phone layout.** Lyrics fill the screen; swipe up to browse the library, then pick a track
+  to fold it away. Playback controls stay within reach at the bottom.
 - **Optional plugins** for YouTube search, AI query correction and a self-hosted search
   backend. All are disabled by default and issue no requests until configured.
 - **Bedtime playlist.** A moon button opens your own playlist from a local cache. Long-press
@@ -191,12 +197,21 @@ backend supplies word-level lyric timings, the karaoke sweep described below is 
 
 ## On a phone
 
-There is not enough width for two panes, so the lyrics take the whole screen and the library
-becomes a sheet at the bottom. Collapsed, only its header shows.
+Phones open in the lyrics view. The library sits in a sheet at the bottom; when collapsed,
+only its header shows. The two phone screenshots at the top show the expanded and collapsed
+states.
 
-| | |
-| --- | --- |
-| ![Sheet](docs/mobile-sheet.png) | ![Player](docs/mobile-player.png) |
+- **More room for lyrics.** The list folds away after choosing a track, so lyrics remain large
+  and easy to follow on a narrow screen.
+- **More tracks in view.** Single-line rows keep artwork, title and artist together without
+  filling the screen with separate cards.
+- **Controls stay visible.** The playback bar and library handle fit within the visible
+  viewport as mobile browser toolbars expand or collapse.
+- **Quick bedtime access.** Once synced, the moon button opens the cached playlist immediately.
+  Long-press a track to manage its membership.
+
+The same HTML file works on a phone, tablet or car screen, with no app to install and no
+additional backend to run.
 
 Swipe up on the header — or tap it — to raise the sheet over most of the screen; swipe back
 down or pick a track to drop it again. A quick flick counts, and a drag that does not travel
