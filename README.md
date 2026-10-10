@@ -80,7 +80,7 @@ Open the settings panel with the gear icon in the top-right corner.
 ![Settings](docs/settings.png)
 
 Settings are stored in `localStorage` on the device that entered them. This page has no
-separate account or telemetry. Play counts and playlist edits are sent to your Navidrome
+separate account or telemetry. Play counts and favorite changes are sent to your Navidrome
 server so that its other clients can see them too.
 
 ### Navidrome (required)
@@ -261,6 +261,23 @@ or another name all open the same account's starred songs. The label never choos
 or filters music. Each account has one starred-song collection; use ordinary Navidrome
 playlists for independently managed bedtime, nursery or pop collections.
 
+**Also show favorites as a playlist in Navidrome.** Its native smart playlists can mirror
+track hearts. Save this as `Favorites.nsp` in your music folder and run a library scan:
+
+```json
+{
+  "name": "Favorites",
+  "all": [{"is": {"loved": true}}],
+  "sort": "playCount",
+  "order": "desc"
+}
+```
+
+Set its owner to the account whose favorites you want; new imports belong to the first admin
+by default. The playlist refreshes on access, so star or unstar songs to change its contents.
+This client still reads native stars directly and does not require the playlist.
+See [Navidrome smart playlists](https://www.navidrome.org/docs/usage/features/smart-playlists/).
+
 Metadata is cached by server and username, independently of the label. Opening the heart
 reads the cache immediately; a first visit waits for the initial background sync. Refreshes
 run every five minutes and on returning after at least a minute. Failed reads preserve the
@@ -414,8 +431,8 @@ Until then, the on-screen search box covers the same ground.
 
 ## Private deployments and the GitHub version
 
-Both use the same native favorite source: `getStarred2.song` and `star/unstar`. The public
-default label is “最爱”; a private deployment may display “哄睡最爱”. Labels and connection
+Both use the same native favorite source: `getStarred2.song` and `star/unstar`. The
+default label in both deployments is “最爱”. Labels and connection
 settings do not change the source. This repository contains no private songs, accounts or
 playlist IDs, and installs no original-file deletion service. See the [development contract](docs/development.md).
 

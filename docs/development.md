@@ -7,7 +7,7 @@ An entry labelled “Bedtime favorites” uses exactly the same collection as �
 | Behavior | Public single-file client | Private family deployment |
 | --- | --- | --- |
 | Favorite source | Native per-user starred songs | Same native per-user source |
-| Display label | `favoriteName`, default 最爱 | May display 哄睡最爱 |
+| Display label | `favoriteName`, default 最爱 | 最爱 |
 | Credentials | User's browser settings | Private service configuration |
 | Cache identity | Server + username; label-independent | Same scope, optional authenticated initial snapshot |
 | Original-file deletion | Unsupported | Separate private service with explicit confirmation |
