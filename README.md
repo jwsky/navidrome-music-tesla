@@ -9,7 +9,7 @@ and desktop browsers. One HTML file — no build step, no server-side component,
 
 | Phone · library expanded | Phone · library collapsed |
 | --- | --- |
-| ![Phone with the song list open](docs/mobile-sheet.png) | ![Phone showing lyrics with the song list collapsed](docs/mobile-player.png) |
+| <a href="docs/mobile-sheet.png"><img src="docs/mobile-sheet.png" width="390" alt="Phone with the song list open"></a> | <a href="docs/mobile-player.png"><img src="docs/mobile-player.png" width="390" alt="Phone showing lyrics with the song list collapsed"></a> |
 
 ## Overview
 
@@ -195,6 +195,17 @@ An additional source can be attached by pointing this field at a service that im
 three endpoints. See [docs/backend-api.md](docs/backend-api.md) for the contract. If a
 backend supplies word-level lyric timings, the karaoke sweep described below is used.
 
+## Playback
+
+Selecting a track starts playback. Native library tracks request playback directly during
+the click, without waiting for a loading event. If the browser blocks playback, the page
+shows a prompt; tap **Play** to retry. The button follows the actual playback state.
+
+When the browser cannot decode the original format, the client requests one MP3 transcode
+from Navidrome at up to 320 kbps. Navidrome must have transcoding configured for this to work.
+Playback permission errors do not trigger transcoding. A failed retry shows an error and
+leaves the controls available to retry or choose another track.
+
 ## On a phone
 
 Phones open in the lyrics view. The library sits in a sheet at the bottom; when collapsed,
@@ -226,6 +237,8 @@ The playing track is **Auld Lang Syne**, performed by Mairi Campbell and David F
 the displayed lyric excerpt follows Robert Burns's
 [public-domain text (Library of Congress)](https://www.loc.gov/item/00001778/).
 The recording and album artwork retain their respective rights. Account details are omitted.
+Images are lossless PNGs rendered at 2× on desktop and 3× on phone. Open an image to see it
+at full resolution.
 
 Covers replace the built-in placeholder only after the image has loaded successfully, so
 a slow or broken server leaves a placeholder rather than an empty box.

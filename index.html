@@ -29,7 +29,7 @@ body{
   height:100svh;
   height:100dvh;
   background:var(--bg);color:var(--fg);
-  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,"Noto Sans CJK SC",sans-serif;
   overflow:hidden;
   overscroll-behavior:none;
 }
@@ -684,6 +684,7 @@ let idx = -1;               // 当前播放下标
 let recentOrder = false;    // 默认常听与发现，按钮切换到最近添加
 let seq = 0;                // 搜索序号，防止慢响应覆盖新结果
 let generation = 0, playSeq = 0, playingItem = null, listenSession = null;
+let playback = null, playAttempt = 0;
 let view = 'library', libraryLoading = null;
 let bedtime, menuItem = null, menuBusy = false, menuOpener = null;
 let press = null, pressTimer = null, suppressClickUntil = 0;
@@ -703,8 +704,8 @@ const P = {
     const c = cur(); return (c && Number(c.duration)) || 0;
   },
   get paused() { return audio.paused; },
-  play()  { audio.play().catch(() => {}); },
-  pause() { audio.pause(); },
+  play()  { resumePlayback(); },
+  pause() { if (playback) playback.wantPlay = false; ++playAttempt; audio.pause(); },
   seek(t) { audio.currentTime = t; },
 };
 
@@ -1018,59 +1019,119 @@ function markPlaying() {
 }
 
 /* ---------- 取流地址 ---------- */
-async function streamUrl(it) {
-  if (it.src === 'lib') return sub('stream', 'id=' + enc(it.id) + '&format=raw');
+function streamUrl(it, config = cfg) {
+  if (it.src === 'lib') return sub('stream', 'id=' + enc(it.id) + '&format=raw', config);
   if (it.src === 'yt')  return ytStream(it.videoId);
   if (it.src === 'ext') {
-    const r = await fetch(extBase() + '/play?' + new URLSearchParams(it.play || { id: it.id })).then(r => r.json());
-    if (!r || !r.url) throw new Error('外部后端没返回播放地址');
-    return r.url;
+    return fetch((config.ext || '').trim().replace(/\/+$/, '') + '/play?' + new URLSearchParams(it.play || { id: it.id }))
+      .then(r => r.json()).then(r => {
+        if (!r || !r.url) throw new Error('外部后端没返回播放地址');
+        return r.url;
+      });
   }
   throw new Error('这个来源不用解析流地址');
 }
 
 /* ---------- 播放 ---------- */
-async function play(i) {
+function currentPlayback(state) {
+  return state === playback && state.seq === playSeq && state.gen === generation;
+}
+function playbackFailed(state, error) {
+  if (!currentPlayback(state) || !state.wantPlay || (error && error.name === 'AbortError')) return;
+  const code = audio.error && audio.error.code;
+  const unsupported = (error && error.name === 'NotSupportedError') || code === 3 || code === 4;
+  if (unsupported && state.item.src === 'lib' && !state.fallback) {
+    state.fallback = true;
+    startStream(state, sub('stream', 'id=' + enc(state.item.id) + '&format=mp3&maxBitRate=320', state.config));
+    return;
+  }
+  state.wantPlay = false;
+  audio.pause(); setPlayIcon(false);
+  toast(error && error.name === 'NotAllowedError'
+    ? '浏览器需要确认播放，请点下方播放按钮。'
+    : '音频无法播放，请重试或换一首。', 6000);
+}
+function requestPlayback(state) {
+  if (!currentPlayback(state) || !state.src || state.src !== audio.src) return;
+  state.wantPlay = true;
+  const attempt = ++playAttempt, src = state.src;
+  const failed = error => {
+    if (attempt === playAttempt && src === audio.src) playbackFailed(state, error);
+  };
+  try {
+    // Call play() inside the click handler; do not wait for a media loading event.
+    Promise.resolve(audio.play()).then(() => {
+      if (currentPlayback(state) && attempt === playAttempt) setPlayIcon(!audio.paused);
+    }).catch(failed);
+  } catch (error) { failed(error); }
+}
+function startStream(state, url) {
+  if (!currentPlayback(state)) return;
+  state.pending = false;
+  ++playAttempt; audio.pause(); audio.src = url; audio.load();
+  state.src = audio.src;
+  if (state.item.src === 'lib') {
+    // A format fallback belongs to the same listen, so it must not count twice.
+    state.session = state.session || {item:state.item, started:null, reported:false, config:state.config, gen:state.gen};
+    state.session.src = state.src;
+    listenSession = state.session;
+  }
+  if (state.wantPlay) requestPlayback(state);
+}
+function resolvePlayback(state) {
+  state.pending = true;
+  try {
+    const url = streamUrl(state.item, state.config);
+    if (typeof url === 'string') startStream(state, url);
+    else Promise.resolve(url).then(url => startStream(state, url)).catch(error => {
+      if (!currentPlayback(state)) return;
+      state.pending = false; playbackFailed(state, error);
+    });
+  } catch (error) { state.pending = false; playbackFailed(state, error); }
+}
+function resumePlayback() {
+  const state = playback;
+  if (!state || !currentPlayback(state)) {
+    if (list.length) play(idx >= 0 ? idx : 0);
+    else if (!configured()) openSettings();
+    return;
+  }
+  state.wantPlay = true;
+  if (state.pending) { toast('正在取音频，请稍候…'); return; }
+  if (!state.src || audio.error) { state.fallback = false; resolvePlayback(state); }
+  else requestPlayback(state);
+}
+function play(i) {
   const it = list[i];
   if (!it) return;
   recordPlay(); listenSession = null;
   const my = ++playSeq, gen = generation, config = Object.assign({}, cfg);
+  const state = playback = {seq:my, gen, config, item:it, src:'', pending:false, wantPlay:true, fallback:false};
+  ++playAttempt; audio.pause(); audio.removeAttribute('src'); audio.load();
   playingItem = it;
   idx = i;
   markPlaying();
   $('npName').textContent = it.title + (it.artist ? ' — ' + it.artist : '');
+  $('tCur').textContent = '0:00'; $('tTot').textContent = fmtTime(Number(it.duration) || 0);
+  $('fill').style.width = '0%'; setPlayIcon(false);
   setBackground(coverOf(it, 600));
   loadLyrics(it, my);
 
   // YouTube 要先换一个直链，慢的时候得让用户知道在干嘛
   if (it.src === 'yt') toast('正在取 YouTube 音频…', 8000);
-  const startStream = async url => {
-    if (my !== playSeq) return;
-    audio.src = url; audio.load();
-    listenSession = it.src === 'lib' ? {item:it, src:audio.src, started:null, reported:false, config, gen} : null;
-    await audio.play();
-    if (my === playSeq) setPlayIcon(true);
-  };
-  try {
-    await startStream(await streamUrl(it));
-  } catch (e) {
-    if (my !== playSeq) return;
-    // 原始格式（flac 等）浏览器放不了时，退回让服务端转码成 mp3
-    if (it.src === 'lib' && audio.src.indexOf('format=raw') !== -1) {
-      try {
-        await startStream(sub('stream', 'id=' + enc(it.id) + '&format=mp3&maxBitRate=320', config)); return;
-      } catch (e2) {}
-    }
-    toast('放不了这首：' + (e && e.message ? e.message : it.title));
-  }
+  resolvePlayback(state);
 }
 function setPlayIcon(playing) {
+  $('btnPlay').setAttribute('aria-label', playing ? '暂停' : '播放');
   $('icPlay').innerHTML = playing
     ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>'
     : '<path d="M7 4l14 8-14 8z"/>';
 }
-audio.addEventListener('play',  () => setPlayIcon(true));
-audio.addEventListener('pause', () => setPlayIcon(false));
+audio.addEventListener('play',  () => { if (!audio.paused) setPlayIcon(true); });
+audio.addEventListener('pause', () => { if (audio.paused) setPlayIcon(false); });
+audio.addEventListener('error', () => {
+  if (playback && playback.src === audio.src && audio.error) playbackFailed(playback, audio.error);
+});
 function recordPlay() {
   const session = listenSession, duration = P.dur;
   if (!session || session.reported || !session.started || session.src !== audio.src || !duration) return;
@@ -1552,7 +1613,7 @@ syncSheetMetrics();
 setTimeout(syncSheetMetrics, 600);   // 字体加载完再量一次更准
 
 /* ---------- 交互 ---------- */
-$('btnPlay').addEventListener('click', () => { P.paused ? P.play() : P.pause(); setPlayIcon(!P.paused); });
+$('btnPlay').addEventListener('click', () => { P.paused ? P.play() : P.pause(); });
 $('btnNext').addEventListener('click', next);
 $('btnPrev').addEventListener('click', prev);
 $('bar').addEventListener('click', e => {
@@ -1585,7 +1646,7 @@ $('q').addEventListener('keydown', e => {
 document.addEventListener('keydown', e => {
   if (menuItem || $('mask').classList.contains('open')) return;
   if (/^(INPUT|TEXTAREA)$/.test((e.target.tagName || ''))) return;
-  if (e.code === 'Space') { e.preventDefault(); P.paused ? P.play() : P.pause(); setPlayIcon(!P.paused); }
+  if (e.code === 'Space') { e.preventDefault(); P.paused ? P.play() : P.pause(); }
   if (e.key === 'ArrowRight') next();
   if (e.key === 'ArrowLeft') prev();
 });
@@ -1635,6 +1696,7 @@ $('btnTest').addEventListener('click', async () => {
 });
 $('btnSave').addEventListener('click', () => {
   recordPlay(); listenSession = null; ++playSeq; ++generation; ++seq;
+  playback = null; ++playAttempt;
   audio.pause(); audio.removeAttribute('src'); audio.load();
   playingItem = null; library = []; libraryLoading = null; libLoaded = false;
   discoveryPriorities.clear(); recentOrder = false; view = 'library';
