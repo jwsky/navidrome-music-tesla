@@ -98,12 +98,13 @@ When `changed` is true the client searches for **both** the original and the cor
 and keeps both sets of results. If this endpoint is missing, the client falls back to the
 OpenAI-compatible endpoint configured in settings, if any.
 
-## Reserved
+## Optional voice relay
 
-Two further endpoints are planned and not implemented yet; they are listed so backends can
-avoid the names. `/asr` will accept captured audio and return a transcript, and `/inbox` will
-let an external trigger (an Apple Shortcut, for instance) queue a query for the player to pick
-up. See the roadmap in the README.
+Voice uses a separate service URL and device bearer token under **Settings → Voice**.
+[`server/voice.py`](../server/voice.py) implements `/asr`, `/inbox`, `/inbox/ack` and `/health`;
+see [deployment and iOS Shortcuts setup](voice.md). The search backend field does not enable
+voice, and the voice relay does not implement the music-source endpoints above. Library
+playback and native favorites remain independent of both integrations.
 
 ## Failure handling
 

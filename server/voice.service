@@ -1,0 +1,24 @@
+[Unit]
+Description=Optional Navidrome Music voice relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=navidrome-voice
+Group=navidrome-voice
+EnvironmentFile=/etc/navidrome-music-voice.env
+Environment=VOICE_DB=/var/lib/navidrome-music-voice/inbox.sqlite3
+ExecStart=/usr/bin/python3 /opt/navidrome-music-tesla/server/voice.py
+StateDirectory=navidrome-music-voice
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

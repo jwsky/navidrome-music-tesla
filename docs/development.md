@@ -26,3 +26,11 @@ addresses belong in this repository.
 Run `node --test tests/*.test.cjs` after changes. Keep cancellation independent of files and
 playback, reject stale account responses, and prevent an old refresh from undoing a mutation.
 See [Navidrome's native favorite and smart-playlist semantics](https://www.navidrome.org/docs/usage/features/smart-playlists/).
+
+Wide-screen microphone, ordering, search and heart controls belong below the left song list.
+The same toolbar moves to the top on phones; do not duplicate control IDs. Voice is off by
+default and must not create requests or capture audio until configured. Its relay receives
+only recordings or command text and a separate device token, never music credentials.
+Native favorites intent is explicit; display labels must not imply playlist selection.
+See [optional voice deployment](voice.md). Relay tests use mocked localhost providers:
+`python3 -m unittest discover -s tests -p test_voice_server.py`.

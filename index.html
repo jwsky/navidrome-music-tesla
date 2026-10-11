@@ -51,6 +51,14 @@ button{cursor:pointer;border:0;background:none}
 .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);
   box-shadow:0 0 12px var(--accent);flex:0 0 auto}
 .topbar-right{display:flex;align-items:center;gap:8px}
+.library-actions{display:flex;align-items:center;gap:12px;flex:0 0 auto;
+  padding:12px 4px 10px;border-top:1px solid var(--line)}
+.library-actions>.icon-btn,.searchwrap>.icon-btn{flex:0 0 40px}
+.library-actions .searchwrap.open{flex:1;min-width:0}
+.library-actions .searchwrap.open #q{width:100%;min-width:0;flex:1}
+#mobileActions{display:flex;min-width:0}
+#btnVoice.recording{color:#ff9b9b;border-color:#ff9b9b;background:rgba(255,80,80,.16)}
+#btnVoice:disabled{opacity:.6;cursor:wait}
 .icon-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   background:var(--card);border:1px solid var(--line);transition:background .15s}
 .icon-btn:active{background:var(--card-hi)}
@@ -232,9 +240,11 @@ body.browsing .seek-cue{display:flex}
   .controls{gap:7px}
   .ctl{width:40px;height:40px}.ctl.play{width:46px;height:46px}
   .player{padding:10px 12px 14px;gap:10px}
-  .searchwrap.open #q{width:min(56vw,260px)}
+  .library-actions{gap:8px;padding:0;border:0}
   body.search-open .brand{display:none}
   body.search-open .topbar-right{width:100%;min-width:0}
+  body.search-open #mobileActions,body.search-open .library-actions{flex:1;min-width:0}
+  body.search-open .library-actions>.icon-btn{display:none}
   body.search-open .searchwrap{flex:1;min-width:0}
   body.search-open .searchwrap.open #q{width:100%;min-width:0;flex:1}
   .topbar-right>.icon-btn,.searchwrap>.icon-btn{flex:0 0 40px}
@@ -290,7 +300,7 @@ body.browsing .seek-cue{display:flex}
   .ly{font-size:17px}.ly.on{font-size:20px}
   .player{padding:8px 14px 10px}
 }
-@media (max-width:360px){.brand span:last-child{display:none}}
+@media (max-width:430px){.brand span:last-child{display:none}}
 </style>
 </head>
 <body>
@@ -302,18 +312,7 @@ body.browsing .seek-cue{display:flex}
   <div class="topbar">
     <div class="brand"><span class="dot"></span><span>Navidrome</span></div>
     <div class="topbar-right">
-      <div class="searchwrap" id="searchwrap">
-        <input id="q" type="search" placeholder="搜索歌曲 / 歌手…" autocomplete="off" enterkeyhint="search">
-        <button class="icon-btn" id="btnSearch" title="搜索" aria-label="搜索">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
-        </button>
-      </div>
-      <button class="icon-btn" id="btnBedtime" title="最爱" aria-label="最爱" aria-pressed="false">
-        <svg viewBox="0 0 24 24"><path d="M12 21l-8.5-8.2A5.5 5.5 0 0 1 12 5a5.5 5.5 0 0 1 8.5 7.8z"/></svg>
-      </button>
-      <button class="icon-btn" id="btnShuffle" title="常听与发现 / 最近添加" aria-label="切换曲库排序">
-        <svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
-      </button>
+      <div id="mobileActions"></div>
       <button class="icon-btn" id="btnSettings" title="设置" aria-label="设置">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </button>
@@ -325,6 +324,23 @@ body.browsing .seek-cue{display:flex}
       <div class="list-head" id="listHead"><b id="listTitle">曲库</b><span id="listCount"></span></div>
       <div class="list-tools" id="bedTools" hidden><button id="btnCandidates">从曲库挑选</button><span id="bedHint">长按歌曲收藏或解除收藏</span></div>
       <div class="songlist" id="songlist"></div>
+      <div class="library-actions" id="libraryActions" role="toolbar" aria-label="点歌与曲库操作">
+        <button class="icon-btn" id="btnVoice" title="语音点歌 · 可选" aria-label="语音点歌" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>
+        </button>
+        <button class="icon-btn" id="btnShuffle" title="常听与发现 / 最近添加" aria-label="切换曲库排序">
+          <svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+        </button>
+        <div class="searchwrap" id="searchwrap">
+          <input id="q" type="search" placeholder="搜索歌曲 / 歌手…" autocomplete="off" enterkeyhint="search">
+          <button class="icon-btn" id="btnSearch" title="搜索" aria-label="搜索">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+          </button>
+        </div>
+        <button class="icon-btn" id="btnBedtime" title="最爱" aria-label="最爱" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M12 21l-8.5-8.2A5.5 5.5 0 0 1 12 5a5.5 5.5 0 0 1 8.5 7.8z"/></svg>
+        </button>
+      </div>
     </div>
     <div class="pane-lyrics" id="lyricsPane">
       <div id="lyrics"></div>
@@ -437,6 +453,20 @@ body.browsing .seek-cue{display:flex}
       </p>
       <div class="field"><label>后端地址</label>
         <input id="cfgExt" type="url" placeholder="留空 = 不启用" spellcheck="false"></div>
+    </div>
+
+    <div class="group" id="voiceSettings">
+      <h3>语音点歌与 iOS 快捷指令 <span class="badge">可选</span></h3>
+      <p class="hint">普通播放不需要此服务。部署仓库里的 <code>server/voice.py</code>，
+        就能接收 iOS 快捷指令的听写文字；配置服务端转写接口后也能使用网页麦克风。
+        音乐账号仍只发给 Navidrome，转写 API Key 只放在服务端。
+        部署与快捷指令步骤见 <code>docs/voice.zh-CN.md</code>。</p>
+      <label class="switch"><input id="cfgVoiceOn" type="checkbox"><span>启用语音服务与远程点歌</span></label>
+      <div class="field"><label>语音服务地址</label>
+        <input id="cfgVoiceUrl" type="url" placeholder="https://voice.example.com" spellcheck="false"></div>
+      <div class="field"><label>设备令牌（与该设备的快捷指令使用同一个）</label>
+        <input id="cfgVoiceToken" type="password" autocomplete="off" placeholder="留空 = 不启用" spellcheck="false"></div>
+      <button class="btn" id="btnVoiceTest">测试语音服务</button><span id="voiceTestOut" class="hint" role="status"></span>
     </div>
 
     <div class="actions">
@@ -554,7 +584,7 @@ root.MusicLibrary = {normalize, recommend, candidates, playedSeconds, PlaylistCa
 
 /* ============================================================
    Navidrome Music · Tesla
-   一个单文件的 Navidrome 前端。没有构建、没有依赖、没有后端。
+   一个单文件的 Navidrome 前端。基础播放直连音乐库，语音服务可选。
    ============================================================ */
 
 const $ = id => document.getElementById(id);
@@ -634,7 +664,8 @@ function md5(input) {
 
 /* ---------- 配置：只存在本机 localStorage ---------- */
 const CFG_KEY = 'navidrome-tesla.config.v1';
-const DEFAULTS = { url:'', user:'', pass:'', yt:'', aiOn:false, aiUrl:'', aiKey:'', aiModel:'', ext:'', favoriteName:'最爱' };
+const DEFAULTS = { url:'', user:'', pass:'', yt:'', aiOn:false, aiUrl:'', aiKey:'', aiModel:'', ext:'', favoriteName:'最爱',
+                   voiceOn:false, voiceUrl:'', voiceToken:'' };
 let cfg = Object.assign({}, DEFAULTS);
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(CFG_KEY) || '{}')); } catch (e) {}
 const saveCfg = () => { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) { toast('浏览器不让保存设置（可能是隐私模式）'); } };
@@ -1473,7 +1504,7 @@ async function aiCorrect(q) {
   return (t && t !== q && t.length <= 40) ? t : null;
 }
 
-async function doSearch(raw) {
+async function doSearch(raw, startFirst = false) {
   const q0 = (raw || '').trim();
   if (!q0) return;
   if (!configured()) { openSettings(); return; }
@@ -1490,7 +1521,10 @@ async function doSearch(raw) {
       if (isMobile()) document.body.classList.add('sheet-open');      // 出结果就升起来给用户挑
     }
   };
-  const autoplay = () => { if (my === seq && idx < 0 && acc.length) play(0); };
+  let started = false;
+  const autoplay = () => {
+    if (my === seq && acc.length && (idx < 0 || (startFirst && !started))) { started = true; play(0); }
+  };
 
   // ① 本地先出——库里有的话马上就能响，不用等网络插件
   try { push(await searchLocal(q0)); autoplay(); }
@@ -1582,9 +1616,15 @@ $('lyricsPane').addEventListener('click', () => {
   if (isMobile()) document.body.classList.remove('sheet-open');
 });
 window.addEventListener('resize', () => {
+  syncToolbar();
   syncSheetMetrics();
   if (!isMobile()) document.body.classList.remove('sheet-open');   // 回到宽屏就别留状态
 });
+function syncToolbar() {
+  const target = isMobile() ? $('mobileActions') : document.querySelector('.pane-list');
+  if ($('libraryActions').parentElement !== target) target.appendChild($('libraryActions'));
+}
+syncToolbar();
 syncSheetMetrics();
 setTimeout(syncSheetMetrics, 600);   // 字体加载完再量一次更准
 
@@ -1627,16 +1667,151 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft') prev();
 });
 
+/* ---------- 可选语音：独立令牌，不代理音乐账号 ---------- */
+let voiceEpoch = 0, voiceTimer = null, voicePolling = false, voiceRecord = null;
+const voiceRequests = new Set();
+const voiceEnabled = (config = cfg) => !!(config.voiceOn && config.voiceUrl && config.voiceToken);
+function voiceBase(config = cfg) {
+  const u = new URL((config.voiceUrl || '').trim());
+  if (!/^https?:$/.test(u.protocol) || u.username || u.password || u.search || u.hash) throw new Error('请填写 HTTP / HTTPS 语音服务地址');
+  return u.href.replace(/\/+$/, '');
+}
+async function voiceRequest(path, options = {}, config = cfg) {
+  const controller = new AbortController();
+  voiceRequests.add(controller);
+  const timer = setTimeout(() => controller.abort(), path === '/asr' ? 45000 : 10000);
+  try {
+    const response = await fetch(voiceBase(config) + path, Object.assign({}, options, {
+      credentials:'omit', cache:'no-store', signal:controller.signal,
+      headers:Object.assign({}, options.headers, {Authorization:'Bearer ' + config.voiceToken}),
+    }));
+    const data = await response.json();
+    if (!response.ok) throw new Error((data && data.error) || '语音服务 HTTP ' + response.status);
+    return data;
+  } finally { clearTimeout(timer); voiceRequests.delete(controller); }
+}
+function validVoiceCommand(command) {
+  return !!(command && (command.type === 'favorites' ||
+    (command.type === 'search' && typeof command.query === 'string' && command.query.trim() && command.query.length <= 240)));
+}
+async function applyVoiceCommand(command, epoch) {
+  if (epoch !== voiceEpoch || !configured() || !validVoiceCommand(command)) return;
+  if (command.type === 'search') { toast('语音点歌：' + command.query); await doSearch(command.query, true); return; }
+  const my = ++seq, gen = generation, chosen = playSeq;
+  if (!bedtime.songs.length) await refreshBedtime();
+  if (epoch !== voiceEpoch || my !== seq || gen !== generation || chosen !== playSeq) return;
+  showBedtime();
+  if (list.length) play(0); else toast('暂无最爱，长按曲库歌曲加入');
+}
+function scheduleVoicePoll(delay = 2000) {
+  clearTimeout(voiceTimer);
+  if (voiceEnabled() && configured() && !document.hidden) voiceTimer = setTimeout(pollVoice, delay);
+}
+async function pollVoice() {
+  if (voicePolling || !voiceEnabled() || !configured() || document.hidden) return;
+  if (voiceRecord || $('mask').classList.contains('open')) { scheduleVoicePoll(); return; }
+  voicePolling = true;
+  const epoch = voiceEpoch, gen = generation, config = Object.assign({}, cfg);
+  let delay = 2000;
+  try {
+    const data = await voiceRequest('/inbox', {}, config), command = data.command;
+    if (epoch !== voiceEpoch || gen !== generation || document.hidden || voiceRecord || !validVoiceCommand(command) ||
+        typeof command.id !== 'string' || !(Number(command.expiresAt) > Date.now() / 1000)) return;
+    // Acceptance is atomic: two tabs using this device token cannot both claim the command.
+    const accepted = await voiceRequest('/inbox/ack', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:command.id})}, config);
+    if (accepted.accepted && epoch === voiceEpoch && gen === generation && !document.hidden && !voiceRecord)
+      await applyVoiceCommand(command, epoch);
+  } catch (_) { delay = 10000; /* Voice failures do not interrupt direct library playback. */ }
+  finally { voicePolling = false; scheduleVoicePoll(delay); }
+}
+function resetVoice(restart = true) {
+  ++voiceEpoch; clearTimeout(voiceTimer);
+  voiceRequests.forEach(controller => controller.abort());
+  const record = voiceRecord; voiceRecord = null;
+  if (record) {
+    record.cancelled = true; clearTimeout(record.timer);
+    if (record.recorder && record.recorder.state !== 'inactive') record.recorder.stop();
+    if (record.stream) record.stream.getTracks().forEach(track => track.stop());
+  }
+  $('btnVoice').disabled = false; $('btnVoice').classList.remove('recording');
+  $('btnVoice').setAttribute('aria-pressed', 'false');
+  $('btnVoice').title = voiceEnabled() ? '语音点歌 · 点击录音，再次点击结束' : '语音点歌 · 在设置中启用可选服务';
+  if (restart) scheduleVoicePoll(0);
+}
+async function startVoice() {
+  if (!voiceEnabled()) {
+    openSettings(); $('voiceSettings').scrollIntoView({block:'center'});
+    toast('先配置可选语音服务；普通播放不需要它', 4500); return;
+  }
+  if (!configured()) { openSettings(); return; }
+  if (voiceRecord) {
+    if (voiceRecord.recorder && voiceRecord.recorder.state === 'recording') voiceRecord.recorder.stop();
+    return;
+  }
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+    toast('此浏览器无法录音；请用 HTTPS，或用 iOS 快捷指令点歌', 6000); return;
+  }
+  const record = voiceRecord = {epoch:voiceEpoch, gen:generation, config:Object.assign({}, cfg), chunks:[], cancelled:false};
+  const button = $('btnVoice');
+  const release = () => {
+    clearTimeout(record.timer);
+    if (record.stream) record.stream.getTracks().forEach(track => track.stop());
+  };
+  const finish = () => {
+    release();
+    if (voiceRecord === record) {
+      voiceRecord = null; button.disabled = false; button.classList.remove('recording');
+      button.setAttribute('aria-pressed', 'false'); scheduleVoicePoll();
+    }
+  };
+  try {
+    voiceBase(record.config);
+    button.disabled = true;
+    record.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    if (voiceRecord !== record || record.cancelled || record.epoch !== voiceEpoch) { release(); return; }
+    const mime = ['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
+    const recorder = record.recorder = new MediaRecorder(record.stream, mime ? {mimeType:mime} : {});
+    recorder.ondataavailable = event => { if (event.data.size) record.chunks.push(event.data); };
+    recorder.onerror = () => { record.cancelled = true; finish(); toast('录音失败，请重试或使用快捷指令'); };
+    recorder.onstop = async () => {
+      release();
+      if (record.cancelled || voiceRecord !== record || record.epoch !== voiceEpoch) return;
+      button.disabled = true; button.classList.remove('recording'); button.setAttribute('aria-pressed', 'false');
+      toast('正在识别…', 45000);
+      try {
+        const blob = new Blob(record.chunks, {type:recorder.mimeType || 'audio/webm'});
+        if (!blob.size) throw new Error('没有录到声音');
+        const data = await voiceRequest('/asr', {method:'POST', headers:{'Content-Type':blob.type}, body:blob}, record.config);
+        if (!validVoiceCommand(data.command)) throw new Error('语音服务返回的点歌格式不正确');
+        if (record.epoch === voiceEpoch && record.gen === generation && record.chosen === playSeq && record.search === seq)
+          await applyVoiceCommand(data.command, record.epoch);
+      } catch (error) { if (!record.cancelled && record.epoch === voiceEpoch) toast('语音失败：' + error.message, 6000); }
+      finally { finish(); }
+    };
+    P.pause(); record.chosen = playSeq; record.search = seq;
+    recorder.start(); button.disabled = false; button.classList.add('recording'); button.setAttribute('aria-pressed', 'true');
+    toast('请说歌名，点击麦克风结束（最多 8 秒）', 8000);
+    record.timer = setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 8000);
+  } catch (error) { finish(); if (record.epoch === voiceEpoch) toast('无法录音：' + error.message, 6000); }
+}
+$('btnVoice').addEventListener('click', startVoice);
+document.addEventListener('visibilitychange', () => resetVoice(!document.hidden));
+window.addEventListener('pagehide', () => resetVoice(false));
+
 /* ---------- 设置 ---------- */
 const FIELDS = { url:'cfgUrl', user:'cfgUser', pass:'cfgPass', yt:'cfgYt',
-                 aiOn:'cfgAiOn', aiUrl:'cfgAiUrl', aiKey:'cfgAiKey', aiModel:'cfgAiModel', ext:'cfgExt', favoriteName:'cfgBedName' };
+                 aiOn:'cfgAiOn', aiUrl:'cfgAiUrl', aiKey:'cfgAiKey', aiModel:'cfgAiModel', ext:'cfgExt', favoriteName:'cfgBedName',
+                 voiceOn:'cfgVoiceOn', voiceUrl:'cfgVoiceUrl', voiceToken:'cfgVoiceToken' };
 function openSettings() {
+  resetVoice(false);
   for (const k in FIELDS) {
     const el = $(FIELDS[k]);
     if (el.type === 'checkbox') el.checked = !!cfg[k]; else el.value = cfg[k] || '';
   }
   $('testout').textContent = '';
   $('testout').className = '';
+  $('voiceTestOut').textContent = '';
   $('mask').classList.add('open');
 }
 function readForm() {
@@ -1656,8 +1831,10 @@ $('btnDemo').addEventListener('click', () => {
   $('btnTest').click();
 });
 $('btnSettings').addEventListener('click', openSettings);
-$('btnCancel').addEventListener('click', () => $('mask').classList.remove('open'));
-$('mask').addEventListener('click', e => { if (e.target === $('mask')) $('mask').classList.remove('open'); });
+$('btnCancel').addEventListener('click', () => { $('mask').classList.remove('open'); scheduleVoicePoll(0); });
+$('mask').addEventListener('click', e => {
+  if (e.target === $('mask')) { $('mask').classList.remove('open'); scheduleVoicePoll(0); }
+});
 $('btnTest').addEventListener('click', async () => {
   const out = $('testout'), config = Object.assign({}, cfg, readForm());
   out.className = ''; out.textContent = '连接中…';
@@ -1670,25 +1847,42 @@ $('btnTest').addEventListener('click', async () => {
     out.textContent = '失败：' + e.message;
   }
 });
+$('btnVoiceTest').addEventListener('click', async () => {
+  const out = $('voiceTestOut'), config = Object.assign({}, cfg, readForm());
+  if (!config.voiceUrl || !config.voiceToken) { out.textContent = '请填写服务地址与设备令牌'; return; }
+  out.textContent = '连接中…';
+  try {
+    const data = await voiceRequest('/health', {}, config);
+    out.textContent = data.asr ? '已连接 · 快捷指令与服务端转写已配置' : '已连接 · 快捷指令可用；服务端尚未配置转写';
+  } catch (error) { out.textContent = '失败：' + error.message; }
+});
 $('btnSave').addEventListener('click', () => {
+  const form = readForm();
+  if (form.voiceOn) {
+    try { if (!form.voiceToken) throw new Error('请填写语音设备令牌'); voiceBase(form); }
+    catch (error) { toast(error.message); return; }
+  }
+  resetVoice(false);
   recordPlay(); listenSession = null; ++playSeq; ++generation; ++seq;
   playback = null; ++playAttempt;
   audio.pause(); audio.removeAttribute('src'); audio.load();
   playingItem = null; library = []; libraryLoading = null; libLoaded = false;
   discoveryPriorities.clear(); recentOrder = false; view = 'library';
-  Object.assign(cfg, readForm());
+  Object.assign(cfg, form);
   saveCfg();
   setupBedtime(); setList([], '曲库');
   showLyricPlaceholder('选一首歌开始');
   $('mask').classList.remove('open');
   if (configured()) { loadLibrary(true); refreshBedtime(); }
   else toast('至少要填 Navidrome 地址、用户名和密码');
+  resetVoice();
 });
 
 /* ---------- 启动 ---------- */
 setupBedtime();
 if (configured()) { loadLibrary(); refreshBedtime(); }
 else { openSettings(); showLyricPlaceholder('先在右上角设置里填上你的 Navidrome'); }
+resetVoice();
 
 })();
 </script>

@@ -3,7 +3,8 @@
 [English](README.md) · [中文](README.zh-CN.md)
 
 A single-file web client for [Navidrome](https://www.navidrome.org/), built for car, phone
-and desktop browsers. One HTML file — no build step, no server-side component, no dependencies.
+and desktop browsers. One HTML file — no build step, no extra service for music playback,
+no frontend dependencies. Voice control has an [optional relay](docs/voice.md).
 
 ![Auld Lang Syne with timed lyrics and album covers](docs/player.png)
 
@@ -15,14 +16,17 @@ and desktop browsers. One HTML file — no build step, no server-side component,
 
 - **Single file.** `index.html` contains all markup, styles and scripts. Nothing to compile
   and nothing to install.
-- **No backend.** The page talks to your Navidrome server directly from the browser over the
-  Subsonic API. Navidrome is the music server you already use; this client adds no service.
+- **No backend for playback.** The page talks directly to your Navidrome server over the
+  Subsonic API. Ordinary playback adds no service.
 - **Designed for a car screen.** Large touch targets, tall list rows, a centred lyrics pane
-  that scrolls itself, and album art used as the background.
+  that scrolls itself, and album art used as the background. Wide-screen actions sit below
+  the left song list, closer to the driver in a left-hand-drive car with a central display.
 - **Phone layout.** Lyrics fill the screen; swipe up to browse the library, then pick a track
   to fold it away. Playback controls stay within reach at the bottom.
-- **Optional plugins** for YouTube search, AI query correction and a self-hosted search
-  backend. All are disabled by default and issue no requests until configured.
+- **Optional plugins** for YouTube search, AI query correction, a self-hosted search backend
+  and voice control. All are disabled by default and issue no requests until configured.
+- **Voice requests.** Use the microphone or send iOS Shortcuts dictation from your phone.
+  Only this feature needs the optional relay; code and deployment steps are included.
 - **Native favorites.** A heart button opens your Navidrome-starred songs from a local cache. Long-press
   a library track to add or remove it; Chinese, English and instrumental tracks all work.
 - **Most played, with some discovery.** Every ten default rows contain the next seven tracks
@@ -38,9 +42,14 @@ and desktop browsers. One HTML file — no build step, no server-side component,
 
 Navidrome ships a capable web UI, but it is laid out for desktop and phone use. On an in-car
 display the controls are small relative to the viewing distance, list rows are dense, and
-lyrics are presented as static text rather than as something that can be followed while
-driving. This client trades browsing depth for legibility: fewer controls, larger hit areas,
-and a lyrics view that tracks playback.
+lyrics are presented as static text. This client trades browsing depth for legibility:
+fewer controls, larger hit areas, and a lyrics view that tracks playback.
+
+The wide-screen microphone, ordering, search and heart toolbar is anchored below the song
+list on the left. That reduces reach across a central display for a left-hand-drive driver
+and leaves the lyrics area clear. Settings remain in the top-right corner. Optional
+microphone and Siri/Shortcuts requests reduce typing; phones keep a compact top toolbar,
+accessible with the list folded. Right-hand-drive mounting positions differ.
 
 ## Requirements
 
@@ -194,6 +203,24 @@ One short completion is issued per search, capped at 40 output tokens. The key i
 An additional source can be attached by pointing this field at a service that implements
 three endpoints. See [docs/backend-api.md](docs/backend-api.md) for the contract. If a
 backend supplies word-level lyric timings, the karaoke sweep described below is used.
+
+### Voice and iOS Shortcuts (optional)
+
+Deploy [`server/voice.py`](server/voice.py), then enable **Settings → 语音点歌与 iOS 快捷指令**
+and enter its HTTPS address and your own device token. The default page does not record or poll.
+
+- **Browser microphone:** tap, speak a title, tap again to finish. Your relay transcribes
+  the recording using a provider key kept on the server.
+- **iOS Shortcuts:** use **Dictate Text**, then **Get Contents of URL** to POST the text.
+  The open player receives it and searches normally; this path needs no transcription API key.
+- **Native favorites:** say “play my favorites” or “播放我的最爱”. This uses the current
+  Navidrome account's stars, independently of the entry's display label.
+
+The relay uses Python's standard library and never receives your music password.
+[Deployment and Shortcut setup](docs/voice.md) includes HTTPS, configuration, an optional
+systemd unit and API examples. Simple title/artist requests work; complex natural-language
+playlist instructions are not implemented. The player must stay open and visible;
+browser autoplay may still require tapping Play once.
 
 ## Playback
 
@@ -364,8 +391,8 @@ In-car browsers generally run on modest hardware and an unreliable connection, s
 is built to stay cheap at runtime:
 
 - One HTML document, parsed in a single pass. No framework, no bundler runtime, no
-  external requests for code or fonts — the only network traffic is your own server's API,
-  cover art and audio.
+  external requests for code or fonts. Basic playback requests only your own server's API,
+  cover art and audio; optional plugins contact their configured services.
 - The DOM stays small. Only the current lyric line carries the two-layer sweep markup;
   every other line is plain text.
 - The karaoke sweep animates `clip-path` on a composited layer and reads no layout during
@@ -393,11 +420,12 @@ is built to stay cheap at runtime:
 
 ## Privacy
 
-There is no application backend or analytics. Every request originates from
-your browser and goes to a destination you configured: your Navidrome server, and — only if
-you enable them — the third-party endpoints for the optional plugins. Settings, including
+Basic playback has no extra application backend or analytics. Browser requests go to
+destinations you configure: Navidrome and enabled plugin endpoints. The optional voice relay
+forwards recordings to your configured transcription provider and temporarily stores
+Shortcut text for delivery. It receives no music credentials. Settings, including
 credentials and API keys, are held in `localStorage` on that device only. The favorites cache
-is also local. Playlist changes and qualifying playback timestamps are sent to your
+is also local. Favorite changes and qualifying playback timestamps are sent to your
 Navidrome server. No settings export or private song list is included in this repository.
 
 A static page cannot conceal a key from the browser using it. Enter your own keys in
@@ -415,19 +443,11 @@ current Chromium- or WebKit-based browser should work; the requirements are `fet
 
 The following is not implemented yet and is listed here to describe the intended direction.
 
-### Remote voice control via Apple Shortcuts
+### Richer voice commands
 
-The goal is to request a track with Siri: an Apple Shortcut forwards the transcribed
-utterance to the player, which searches for it and starts playback without anyone touching
-the screen.
-
-The blocker is **parsing natural speech**. What arrives is a full sentence such as
-"play Sunny Day by Jay Chou" rather than a search term, so a model is needed to extract the
-title and artist, strip filler words, and repair homophone errors introduced by speech
-recognition. The implementation is expected to reuse the existing AI correction plugin, with
-the [self-hosted backend](docs/backend-api.md) acting as the endpoint the Shortcut posts to.
-
-Until then, the on-screen search box covers the same ground.
+Simple microphone and Apple Shortcuts requests are implemented through the optional relay.
+Extracting title and artist from complex sentences and selecting arbitrary playlists by
+natural language remain future work. Current voice input supports search and native favorites.
 
 ## Private deployments and the GitHub version
 
@@ -441,8 +461,9 @@ playlist IDs, and installs no original-file deletion service. See the [developme
 Issues and pull requests are welcome. The entire application is `index.html`; there is no
 build tooling to set up — edit the file and reload the page.
 
-The cache and ordering checks use Node's built-in test runner: `node --test tests/*.test.cjs`.
-They require no application build or runtime dependency.
+Client checks use Node's built-in test runner: `node --test tests/*.test.cjs`. Relay checks
+run with `python3 -m unittest discover -s tests -p test_voice_server.py`.
+Both use mocked services and require no build or provider credentials.
 
 ## Disclaimer
 
