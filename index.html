@@ -266,7 +266,8 @@ body.browsing .seek-cue{display:flex}
     background:rgba(16,18,22,.93);
     backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
     box-shadow:0 -12px 40px rgba(0,0,0,.5);
-    transform:translateY(calc(100% - var(--handle-h,44px)));
+    /* 留 1px 裁切余量，避免小数像素合成时露出把手下方的歌曲。 */
+    transform:translateY(calc(100% - var(--handle-h,44px) + 1px));
     transition:transform .3s cubic-bezier(.22,.61,.36,1);
     will-change:transform;
   }
@@ -1669,8 +1670,8 @@ function syncSheetMetrics() {
 (function bindSheetDrag() {
   const handle = $('listHead'), sheet = document.querySelector('.pane-list');
   let startY = 0, startT = 0, delta = 0, dragging = false, wasOpen = false, moved = false;
-  const travel = () => sheet.offsetHeight -
-    (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--handle-h')) || 44);
+  const travel = () => sheet.getBoundingClientRect().height -
+    (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--handle-h')) || 44) + 1;
 
   handle.addEventListener('touchstart', e => {
     if (!isMobile() || !e.touches.length) return;
