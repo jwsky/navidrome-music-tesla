@@ -34,3 +34,12 @@ only recordings or command text and a separate device token, never music credent
 Native favorites intent is explicit; display labels must not imply playlist selection.
 See [optional voice deployment](voice.md). Relay tests use mocked localhost providers:
 `python3 -m unittest discover -s tests -p test_voice_server.py`.
+
+Artwork contrast uses `tools/background-contrast.js`. Run `node tools/sync-background.cjs`
+after editing it to inline the shared source into `index.html`; an optional directory argument
+also writes `background-contrast.js` for a multi-file deployment. The delivered HTML remains
+self-contained. Artwork adapters retain their existing blur and base shading, then apply
+only the missing darkness. The brighter 80th percentile of a softened 32-pixel sample starts
+adding shade above 150/255, with a 65% total target ceiling and lighter edges. Unreadable
+cross-origin covers still display, and stale image loads cannot replace the selected cover.
+Do not change song-row sizing when adjusting artwork contrast.

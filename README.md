@@ -23,6 +23,9 @@ no frontend dependencies. Voice control has an [optional relay](docs/voice.md).
   the left song list, closer to the driver in a left-hand-drive car with a central display.
 - **Phone layout.** Lyrics fill the screen; swipe up to browse the library, then pick a track
   to fold it away. Playback controls stay within reach at the bottom.
+- **Readable lyrics over pale artwork.** Bright covers receive a soft dark gradient behind
+  the white lyrics. Ordinary covers keep their existing look, and thumbnails stay unchanged.
+  The browser checks a small local image sample; this needs no extra service.
 - **Optional plugins** for YouTube search, AI query correction, a self-hosted search backend
   and voice control. All are disabled by default and issue no requests until configured.
 - **Voice requests.** Use the microphone or send iOS Shortcuts dictation from your phone.
