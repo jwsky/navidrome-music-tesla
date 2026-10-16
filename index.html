@@ -1737,7 +1737,13 @@ $('btnShuffle').addEventListener('click', () => {
   toast(recentOrder ? '最近添加' : '常听与发现 · 每 10 首含 7 首常听与 3 首发现');
   if (libLoaded) applyOrder(); else loadLibrary();
 });
-$('btnBedtime').addEventListener('click', () => { if (configured()) showBedtime(); else openSettings(); });
+$('btnBedtime').addEventListener('click', () => {
+  if (!configured()) { openSettings(); return; }
+  if (view === 'bedtime' || view === 'candidates') {
+    ++seq;
+    if (libLoaded) applyOrder(); else loadLibrary();
+  } else showBedtime();
+});
 $('btnCandidates').addEventListener('click', showCandidates);
 $('btnSearch').addEventListener('click', () => {
   const w = $('searchwrap');

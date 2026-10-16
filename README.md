@@ -6,6 +6,9 @@ A single-file web client for [Navidrome](https://www.navidrome.org/), built for 
 and desktop browsers. One HTML file — no build step, no extra service for music playback,
 no frontend dependencies. Voice control has an [optional relay](docs/voice.md).
 
+Connect it to a Navidrome server you host with your own music files. Navidrome scans and
+streams the library; this page uses its standard Subsonic / OpenSubsonic API directly.
+
 ![Auld Lang Syne with timed lyrics and album covers](docs/player.png)
 
 | Phone · library expanded | Phone · library collapsed |
@@ -16,8 +19,8 @@ no frontend dependencies. Voice control has an [optional relay](docs/voice.md).
 
 - **Single file.** `index.html` contains all markup, styles and scripts. Nothing to compile
   and nothing to install.
-- **No backend for playback.** The page talks directly to your Navidrome server over the
-  Subsonic API. Ordinary playback adds no service.
+- **No extra application server.** The page connects directly to your running Navidrome
+  server over the Subsonic API. Navidrome provides the library and audio streams.
 - **Designed for a car screen.** Large touch targets, tall list rows, a centred lyrics pane
   that scrolls itself, and album art used as the background. Wide-screen actions sit below
   the left song list, closer to the driver in a left-hand-drive car with a central display.
@@ -31,7 +34,8 @@ no frontend dependencies. Voice control has an [optional relay](docs/voice.md).
 - **Voice requests.** Use the microphone or send iOS Shortcuts dictation from your phone.
   Only this feature needs the optional relay; code and deployment steps are included.
 - **Native favorites.** A heart button opens your Navidrome-starred songs from a local cache. Long-press
-  a library track to add or remove it; Chinese, English and instrumental tracks all work.
+  a library track to add or remove it; tap the heart again to return to the full library.
+  Chinese, English and instrumental tracks all work.
 - **Most played, with some discovery.** Every ten default rows contain the next seven tracks
   by play count and three lower-play discoveries. The same rule applies to favorites.
 - **Not tied to Tesla.** It was developed and tuned against the Tesla browser, but nothing in
@@ -61,6 +65,52 @@ accessible with the list folded. Right-hand-drive mounting positions differ.
   Edge, Safari and the Tesla in-car browser.
 - HTTPS is recommended. A page served over HTTPS cannot call a plain-HTTP Navidrome server;
   browsers block that as mixed content.
+
+## Set up your music server first
+
+The normal path is **your music files → Navidrome → this browser client**. Navidrome is
+required for your own library; the HTML client adds no separate application server.
+
+1. **Install Navidrome** on an always-on NAS, home computer or server. Follow the
+   [official installation guide](https://www.navidrome.org/docs/installation/), or the
+   [Docker guide](https://www.navidrome.org/docs/installation/docker/) if you use containers.
+2. **Add your music files** to Navidrome's configured music folder and let it scan them.
+   The [getting-started guide](https://www.navidrome.org/docs/getting-started/) covers the
+   initial account, folder permissions and first playback. This client streams your files;
+   it does not supply a music collection.
+3. **Test Navidrome's own web interface first.** Confirm that an account can sign in, the
+   songs appear and a track plays. Check artwork and lyrics there before connecting another client.
+4. **Make Navidrome reachable from the playback device.** Test using the phone or car's
+   actual network. A home-only address will require access to that network. For the hosted
+   HTTPS player, your Navidrome address must also use HTTPS.
+5. **Open this client** using the hosted link below or your own static copy. In Settings,
+   enter the Navidrome base URL, username and password, then test the connection and save.
+   Use a base URL such as `https://music.example.com`, retaining any deployment subpath;
+   do not copy a web-interface route such as `/#/login`. The client appends `/rest`.
+6. **Start with the built-in library connection.** Search, playback, native favorites,
+   lyrics and play-count ordering use Navidrome directly. Enable other sources or voice
+   only when you need them; voice has its own optional relay.
+
+### Recommended practices
+
+- **Keep server data persistent.** With Docker, mount the music folder read-only at
+  `/music` and give the container user write access to a persistent `/data` folder, as in
+  the official example. Back up the music and configuration separately from the
+  [Navidrome database backup](https://www.navidrome.org/docs/usage/admin/backup/), which
+  preserves users, favorites and playback statistics.
+- **Use a regular account on the playback device.** Enter credentials in Settings on a
+  trusted browser. Keep passwords and optional API keys out of the HTML, public forks and screenshots.
+- **Check the API through your reverse proxy.** `/rest` must return Navidrome's JSON or
+  audio, rather than a proxy's HTML sign-in page. Preserve API CORS headers and byte-range
+  requests used for seeking. Use HTTPS for both the hosted player and the music server.
+- **Prepare tags, artwork and lyrics with the music.** Consistent title, artist and album
+  tags improve browsing and suggestions. Embed cover art and timed lyrics, or provide a
+  matching `.lrc` alongside the audio. The client displays lyrics supplied by Navidrome.
+  See the [tagging guidelines](https://www.navidrome.org/docs/usage/library/tagging/).
+- **Keep FFmpeg available for format fallback.** If a browser cannot decode an original
+  file, the client asks Navidrome for MP3; that requires working server-side transcoding.
+- **Keep Navidrome online while listening.** The local favorites cache speeds up opening
+  the list. Audio and artwork still load from the server; this is streaming playback.
 
 ## Installation
 
