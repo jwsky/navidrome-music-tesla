@@ -43,3 +43,8 @@ only the missing darkness. The brighter 80th percentile of a softened 32-pixel s
 adding shade above 150/255, with a 65% total target ceiling and lighter edges. Unreadable
 cross-origin covers still display, and stale image loads cannot replace the selected cover.
 Do not change song-row sizing when adjusting artwork contrast.
+
+Reserve the filled song-row background for the current track. Hover and press feedback
+must remain distinct, since the pointer can stay over the previous track during automatic
+advancement. Keep the playback class and `aria-current` in sync when selecting, rendering
+or advancing tracks; keyboard focus uses a separate outline.

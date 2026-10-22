@@ -81,8 +81,8 @@ button{cursor:pointer;border:0;background:none}
   scrollbar-width:none;-ms-overflow-style:none;padding-bottom:8px}
 .songlist::-webkit-scrollbar{display:none}
 .song{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:12px;
-  cursor:pointer;transition:background .12s}
-.song:active{background:var(--card-hi)}
+  cursor:pointer;transition:box-shadow .12s}
+.song:active{box-shadow:inset 0 0 0 1px var(--line)}
 .song.on{background:var(--card-hi)}
 .song{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .song:focus-visible,.icon-btn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
@@ -1003,6 +1003,7 @@ function render() {
     li.className = 'song' + (i === idx ? ' on' : '');
     li.dataset.index = i; li.dataset.key = keyOf(it); li.tabIndex = 0; li.setAttribute('role', 'button');
     li.setAttribute('aria-label', it.title + ' — ' + it.artist);
+    if (i === idx) li.setAttribute('aria-current', 'true');
     li.innerHTML =
       '<img alt="" decoding="async">' +
       '<div class="meta"><div class="t">' + esc(it.title) + (BADGE[it.src] || '') + '</div>' +
@@ -1111,7 +1112,12 @@ $('songMask').addEventListener('keydown', e => {
 });
 function markPlaying() {
   const kids = $('songlist').children;
-  for (let i = 0; i < kids.length; i++) kids[i].classList.toggle('on', i === idx);
+  for (let i = 0; i < kids.length; i++) {
+    const current = i === idx;
+    kids[i].classList.toggle('on', current);
+    if (current) kids[i].setAttribute('aria-current', 'true');
+    else kids[i].removeAttribute('aria-current');
+  }
   const el = kids[idx];
   if (el) {
     const box = $('songlist'), t = el.offsetTop, b = t + el.offsetHeight;

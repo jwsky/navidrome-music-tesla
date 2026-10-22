@@ -7,6 +7,10 @@ const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const controls = html.slice(html.indexOf('const P = {'), html.indexOf('/* ---------- 背景：封面高斯'));
 const playback = html.slice(html.indexOf('function streamUrl('), html.indexOf('function setPlayIcon('));
+const selection = html.slice(html.indexOf('function markPlaying('), html.indexOf('/* ---------- 取流地址'));
+const navigationStart = html.indexOf('function next()');
+const navigation = html.slice(navigationStart, html.indexOf('/* ---------- 歌词', navigationStart));
+const ended = html.match(/audio\.addEventListener\('ended', \(\) => next\(\)\);/)[0];
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function deferred() {
   let resolve, reject;
@@ -15,12 +19,30 @@ function deferred() {
 }
 function load(onPlay = () => Promise.resolve()) {
   const messages = [], calls = [], elements = new Map();
+  const listeners = new Map();
+  const rows = Array.from({length:2}, (_, i) => {
+    const classes = new Set(), attributes = new Map();
+    return {
+      offsetTop:i * 60, offsetHeight:60,
+      classList:{toggle(name, enabled) { if (enabled) classes.add(name); else classes.delete(name); },
+        contains:name => classes.has(name)},
+      setAttribute:(name, value) => attributes.set(name, value),
+      removeAttribute:name => attributes.delete(name),
+      getAttribute:name => attributes.get(name) || null,
+    };
+  });
+  elements.set('songlist', {children:rows, scrollTop:0, clientHeight:300, scrollTo(){}});
   const audio = {
     src:'', paused:true, error:null, currentTime:0, duration:60,
     load() { this.error = null; },
     pause() { this.paused = true; },
     removeAttribute() { this.src = ''; },
     play() { calls.push(this.src); this.paused = false; return onPlay(this, calls.length); },
+    addEventListener(name, callback) {
+      if (!listeners.has(name)) listeners.set(name, []);
+      listeners.get(name).push(callback);
+    },
+    dispatchEvent(event) { for (const callback of listeners.get(event.type) || []) callback(event); },
   };
   const context = vm.createContext({audio, Promise, URLSearchParams,
     cfg:{url:'https://library.example.test', user:'example'},
@@ -34,9 +56,30 @@ function load(onPlay = () => Promise.resolve()) {
     setPlayIcon() {}, recordPlay() {}, markPlaying() {}, setBackground() {}, loadLyrics() {}, coverOf() {},
     configured() { return true; }, openSettings() {},
   });
-  vm.runInContext(controls + playback + '\nwindow.controls = P;', context);
-  return {context, audio, messages, calls, elements, controls:context.window.controls};
+  vm.runInContext(controls + selection + playback + navigation + ended + '\nwindow.controls = P;', context);
+  return {context, audio, messages, calls, elements, rows, controls:context.window.controls};
 }
+
+test('natural track completion moves the sole current row and accessible marker to the next song', () => {
+  const {context, audio, rows} = load();
+  context.play(0);
+  for (const expected of [1, 0, 1, 0]) {
+    audio.dispatchEvent({type:'ended'});
+    assert.equal(context.playingItem.id, String(expected + 1));
+    assert.deepEqual(rows.map(row => row.classList.contains('on')), rows.map((_, i) => i === expected));
+    assert.deepEqual(rows.map(row => row.getAttribute('aria-current')), rows.map((_, i) => i === expected ? 'true' : null));
+  }
+});
+
+test('next and previous clear stale current markers, including when the track is outside the visible list', () => {
+  const {context, rows} = load();
+  context.play(0); context.next(); context.prev();
+  assert.deepEqual(rows.map(row => row.classList.contains('on')), [true, false]);
+  assert.deepEqual(rows.map(row => row.getAttribute('aria-current')), ['true', null]);
+  context.idx = -1; context.markPlaying();
+  assert(rows.every(row => !row.classList.contains('on') && row.getAttribute('aria-current') === null));
+  assert.equal(context.playingItem.id, '1');
+});
 
 test('selecting a native track calls play before returning to the caller', () => {
   const {context, audio, calls, elements} = load();
