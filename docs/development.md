@@ -48,3 +48,9 @@ Reserve the filled song-row background for the current track. Hover and press fe
 must remain distinct, since the pointer can stay over the previous track during automatic
 advancement. Keep the playback class and `aria-current` in sync when selecting, rendering
 or advancing tracks; keyboard focus uses a separate outline.
+
+Keep pending playback separate from `audio.paused`: an unresolved plugin URL is also paused
+at the media-element level. The button and keyboard must toggle playback intent, and resolving
+the URL must respect that intent. Search jobs retain their original settings, stop scheduling
+work after a view/account change, and must not autoplay over a later manual choice or pause.
+An unavailable library search must not prevent independently configured plugin searches.

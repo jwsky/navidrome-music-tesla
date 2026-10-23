@@ -833,9 +833,14 @@ const P = {
   },
   get paused() { return audio.paused; },
   play()  { resumePlayback(); },
-  pause() { if (playback) playback.wantPlay = false; ++playAttempt; audio.pause(); },
+  pause() { if (playback) playback.wantPlay = false; ++playAttempt; audio.pause(); setPlayIcon(false); },
   seek(t) { audio.currentTime = t; },
 };
+
+function togglePlayback() {
+  const pending = playback && currentPlayback(playback) && playback.pending;
+  (pending ? playback.wantPlay : !P.paused) ? P.pause() : P.play();
+}
 
 /* ---------- 背景：封面高斯模糊，两层交叉淡入 ---------- */
 let bgFront = 'bgA';
@@ -1129,7 +1134,7 @@ function markPlaying() {
 /* ---------- 取流地址 ---------- */
 function streamUrl(it, config = cfg) {
   if (it.src === 'lib') return sub('stream', 'id=' + enc(it.id) + '&format=raw', config);
-  if (it.src === 'yt')  return ytStream(it.videoId);
+  if (it.src === 'yt')  return ytStream(it.videoId, undefined, config);
   if (it.src === 'ext') {
     return fetch((config.ext || '').trim().replace(/\/+$/, '') + '/play?' + new URLSearchParams(it.play || { id: it.id }))
       .then(r => r.json()).then(r => {
@@ -1188,6 +1193,7 @@ function startStream(state, url) {
 }
 function resolvePlayback(state) {
   state.pending = true;
+  setPlayIcon(state.wantPlay);
   try {
     const url = streamUrl(state.item, state.config);
     if (typeof url === 'string') startStream(state, url);
@@ -1205,7 +1211,7 @@ function resumePlayback() {
     return;
   }
   state.wantPlay = true;
-  if (state.pending) { toast('正在取音频，请稍候…'); return; }
+  if (state.pending) { setPlayIcon(true); toast('正在取音频，请稍候…'); return; }
   if (!state.src || audio.error) { state.fallback = false; resolvePlayback(state); }
   else requestPlayback(state);
 }
@@ -1509,10 +1515,10 @@ function kkLoop() {
 }
 
 /* ---------- 搜索：本地 + 可选插件 ---------- */
-const extBase = () => (cfg.ext || '').trim().replace(/\/+$/, '');
+const extBase = (config = cfg) => (config.ext || '').trim().replace(/\/+$/, '');
 
-async function searchLocal(q) {
-  const b = await subGet('search3', 'query=' + enc(q) + '&songCount=60&albumCount=0&artistCount=0');
+async function searchLocal(q, config = cfg) {
+  const b = await subGet('search3', 'query=' + enc(q) + '&songCount=60&albumCount=0&artistCount=0', config);
   return ((b.searchResult3 && b.searchResult3.song) || []).map(fromSubsonic);
 }
 
@@ -1521,10 +1527,10 @@ async function searchLocal(q) {
    搜索走 yt-api，取流走 youtube-mp36 换一个 mp3 直链，直接塞进 <audio>，
    不嵌播放器。key 可以填多个（逗号或换行分隔），每次随机挑一个——
    免费档有硬性速率上限，多备几个能少撞墙。 */
-const ytKeys = () => (cfg.yt || '').split(/[\s,]+/).filter(Boolean);
+const ytKeys = (config = cfg) => (config.yt || '').split(/[\s,]+/).filter(Boolean);
 
-async function rapid(host, path) {
-  const keys = ytKeys();
+async function rapid(host, path, config = cfg) {
+  const keys = ytKeys(config);
   if (!keys.length) throw new Error('还没填 RapidAPI key');
   const key = keys[Math.floor(Math.random() * keys.length)];
   const r = await fetch('https://' + host + path, {
@@ -1540,9 +1546,9 @@ const hmsToSec = t => {
   return parts.length && !parts.some(isNaN) ? parts.reduce((a, b) => a * 60 + b, 0) : 0;
 };
 
-async function searchYouTube(q) {
-  if (!ytKeys().length) return [];
-  const d = await rapid('yt-api.p.rapidapi.com', '/search?query=' + enc(q));
+async function searchYouTube(q, config = cfg) {
+  if (!ytKeys(config).length) return [];
+  const d = await rapid('yt-api.p.rapidapi.com', '/search?query=' + enc(q), config);
   return ((d && d.data) || []).filter(v => v.type === 'video' && v.videoId).map(v => ({
     src: 'yt', videoId: v.videoId,
     title: v.title || '', artist: v.channelTitle || '',
@@ -1552,10 +1558,10 @@ async function searchYouTube(q) {
 }
 
 /* 换直链。这个接口按需转码，第一次点某首歌可能先返回 processing，等几秒再问一次。 */
-async function ytStream(videoId, tries) {
+async function ytStream(videoId, tries, config = cfg) {
   tries = tries || 4;
   for (let i = 0; i < tries; i++) {
-    const d = await rapid('youtube-mp36.p.rapidapi.com', '/dl?id=' + enc(videoId));
+    const d = await rapid('youtube-mp36.p.rapidapi.com', '/dl?id=' + enc(videoId), config);
     if (d.status === 'ok' && d.link) return d.link;
     if (d.status !== 'processing') throw new Error('YouTube：' + (d.msg || d.status || '取流失败'));
     toast('YouTube 正在转码，再等等…', 4000);
@@ -1565,9 +1571,9 @@ async function ytStream(videoId, tries) {
 }
 
 /* 自建后端（可选）。约定见 docs/backend-api.md。 */
-async function searchExt(q) {
-  if (!extBase()) return [];
-  const d = await fetch(extBase() + '/search?q=' + enc(q)).then(r => r.json());
+async function searchExt(q, config = cfg) {
+  if (!extBase(config)) return [];
+  const d = await fetch(extBase(config) + '/search?q=' + enc(q)).then(r => r.json());
   return ((d && d.results) || []).map(r => ({
     src: 'ext', id: r.id, title: r.title || '', artist: r.artist || '',
     duration: r.duration || 0, cover: r.cover || '', play: r.play || { id: r.id },
@@ -1578,22 +1584,22 @@ async function searchExt(q) {
    ① 自建后端的 /correct —— key 留在服务端，不用暴露在浏览器里，还能做缓存
    ② 直连任何兼容 OpenAI /chat/completions 的服务
    后端没实现 /correct（404/超时/形状不对）就自动落到第二条。 */
-async function aiCorrect(q) {
-  if (extBase()) {
+async function aiCorrect(q, config = cfg) {
+  if (extBase(config)) {
     try {
-      const d = await fetch(extBase() + '/correct?q=' + enc(q)).then(r => r.json());
+      const d = await fetch(extBase(config) + '/correct?q=' + enc(q)).then(r => r.json());
       const t = (d && d.corrected || '').trim();
       if (d && d.changed && t && t !== q && t.length <= 40) return t;
       if (d && typeof d.changed === 'boolean') return null;   // 后端明确说"不用改"，就别再问模型
     } catch (e) { /* 没这个端点，继续往下走 */ }
   }
-  if (!(cfg.aiOn && cfg.aiUrl && cfg.aiKey && cfg.aiModel)) return null;
-  const url = cfg.aiUrl.trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '') + '/chat/completions';
+  if (!(config.aiOn && config.aiUrl && config.aiKey && config.aiModel)) return null;
+  const url = config.aiUrl.trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '') + '/chat/completions';
   const d = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.aiKey },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + config.aiKey },
     body: JSON.stringify({
-      model: cfg.aiModel, temperature: 0, max_tokens: 40,
+      model: config.aiModel, temperature: 0, max_tokens: 40,
       messages: [
         { role: 'system', content: '你是音乐搜索纠错器。用户给一段可能有同音字或错别字的歌名/歌手名，你只输出最可能的正确写法，不解释、不加引号标点。本来就对就原样输出。' },
         { role: 'user', content: q },
@@ -1611,6 +1617,8 @@ async function doSearch(raw, startFirst = false) {
   if (!configured()) { openSettings(); return; }
 
   const my = ++seq, acc = [];
+  const config = Object.assign({}, cfg);
+  let intent = playAttempt;
   view = 'search';
   setList(acc, '搜索「' + q0 + '」');
   const push = rows => {
@@ -1624,29 +1632,34 @@ async function doSearch(raw, startFirst = false) {
   };
   let started = false;
   const autoplay = () => {
-    if (my === seq && acc.length && (idx < 0 || (startFirst && !started))) { started = true; play(0); }
+    if (my === seq && intent === playAttempt && acc.length && (idx < 0 || (startFirst && !started))) {
+      started = true; play(0); intent = playAttempt;
+    }
   };
 
   // ① 本地先出——库里有的话马上就能响，不用等网络插件
-  try { push(await searchLocal(q0)); autoplay(); }
-  catch (e) { toast('搜索失败：' + e.message); return; }
+  try { push(await searchLocal(q0, config)); autoplay(); }
+  catch (e) { if (my === seq) toast('本地搜索失败：' + e.message); }
+  if (my !== seq) return;
 
   // ② AI 纠错（开了才走）。改了词就两个词都搜，结果都留着，不替换
   const terms = [q0];
   try {
-    const q1 = await aiCorrect(q0);
+    const q1 = await aiCorrect(q0, config);
+    if (my !== seq) return;
     if (q1 && my === seq) {
       terms.push(q1);
       toast('AI 纠正：' + q0 + ' → ' + q1);
-      push(await searchLocal(q1)); autoplay();
+      push(await searchLocal(q1, config)); autoplay();
     }
   } catch (e) { /* 纠错挂了不影响搜索本身 */ }
+  if (my !== seq) return;
 
   // ③ 插件并行，各自失败互不影响
   const jobs = [];
   terms.forEach(t => {
-    if (ytKeys().length) jobs.push(searchYouTube(t).then(push).catch(e => toast(e.message)));
-    if (extBase()) jobs.push(searchExt(t).then(push).catch(() => {}));
+    if (ytKeys(config).length) jobs.push(searchYouTube(t, config).then(push).catch(e => { if (my === seq) toast(e.message); }));
+    if (extBase(config)) jobs.push(searchExt(t, config).then(push).catch(() => {}));
   });
   await Promise.all(jobs);
   if (my === seq) { autoplay(); if (!acc.length) toast('没找到「' + q0 + '」'); }
@@ -1730,7 +1743,7 @@ syncSheetMetrics();
 setTimeout(syncSheetMetrics, 600);   // 字体加载完再量一次更准
 
 /* ---------- 交互 ---------- */
-$('btnPlay').addEventListener('click', () => { P.paused ? P.play() : P.pause(); });
+$('btnPlay').addEventListener('click', togglePlayback);
 $('btnNext').addEventListener('click', next);
 $('btnPrev').addEventListener('click', prev);
 $('bar').addEventListener('click', e => {
@@ -1769,7 +1782,7 @@ $('q').addEventListener('keydown', e => {
 document.addEventListener('keydown', e => {
   if (menuItem || $('mask').classList.contains('open')) return;
   if (/^(INPUT|TEXTAREA)$/.test((e.target.tagName || ''))) return;
-  if (e.code === 'Space') { e.preventDefault(); P.paused ? P.play() : P.pause(); }
+  if (e.code === 'Space') { e.preventDefault(); togglePlayback(); }
   if (e.key === 'ArrowRight') next();
   if (e.key === 'ArrowLeft') prev();
 });

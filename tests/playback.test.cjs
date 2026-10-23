@@ -195,6 +195,19 @@ test('pausing while a plugin is resolving prevents it from starting when it arri
   assert.equal(calls.length, 1);
 });
 
+test('the playback toggle pauses and resumes a pending plugin without another resolver', async () => {
+  const pending = deferred(), {context, audio, calls} = load();
+  let resolutions = 0;
+  context.list[0] = {src:'yt',videoId:'example-video',title:'Plugin track'};
+  context.ytStream = () => {++resolutions;return pending.promise;};
+  context.play(0); context.togglePlayback();
+  assert.equal(context.playback.wantPlay,false);
+  context.togglePlayback(); assert.equal(context.playback.wantPlay,true);
+  context.togglePlayback(); pending.resolve('https://audio.example.test/plugin.mp3'); await flush();
+  assert.equal(audio.paused,true);assert.equal(resolutions,1);assert.equal(calls.length,0);
+  context.togglePlayback();await flush();assert.equal(calls.length,1);
+});
+
 test('changing connection settings invalidates a pending play failure', async () => {
   const pending = deferred(), {context, messages, calls} = load(() => pending.promise);
   context.play(0); ++context.generation;

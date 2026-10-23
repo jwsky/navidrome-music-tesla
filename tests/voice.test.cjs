@@ -100,7 +100,7 @@ test('a late transcription cannot replace a song the user selected in the meanti
 test('voice search starts its first result even if that song was already selected and paused',async()=>{
   const {c}=load(), started=[];
   const search=html.slice(html.indexOf('async function doSearch('),html.indexOf('/* ---------- 进度 / 歌词推进 ---------- */'));
-  Object.assign(c,{idx:-1,view:'library',
+  Object.assign(c,{idx:-1,playAttempt:0,view:'library',
     searchLocal:async()=>[{id:'1',src:'lib',title:'Already selected'}],aiCorrect:async()=>null,
     keyOf:s=>s&&s.id,cur:()=>({id:'1'}),render(){},markPlaying(){},isMobile:()=>false,
     ytKeys:()=>[],extBase:()=>'',setList(items){c.list=items;c.idx=-1;},
