@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const MusicStreamQuality = require('../tools/stream-quality.js');
 
 const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const controls = html.slice(html.indexOf('const P = {'), html.indexOf('/* ---------- 背景：封面高斯'));
@@ -33,8 +34,8 @@ function load(onPlay = () => Promise.resolve()) {
   });
   elements.set('songlist', {children:rows, scrollTop:0, clientHeight:300, scrollTo(){}});
   const audio = {
-    src:'', paused:true, error:null, currentTime:0, duration:60,
-    load() { this.error = null; },
+    src:'', paused:true, error:null, currentTime:0, duration:60, readyState:4, played:{length:0},
+    load() { this.error = null; this.currentTime = 0; this.played = {length:0}; },
     pause() { this.paused = true; },
     removeAttribute() { this.src = ''; },
     play() { calls.push(this.src); this.paused = false; return onPlay(this, calls.length); },
@@ -42,15 +43,16 @@ function load(onPlay = () => Promise.resolve()) {
       if (!listeners.has(name)) listeners.set(name, []);
       listeners.get(name).push(callback);
     },
-    dispatchEvent(event) { for (const callback of listeners.get(event.type) || []) callback(event); },
+    dispatchEvent(event) { this['on'+event.type]?.(event); for (const callback of listeners.get(event.type) || []) callback(event); },
   };
-  const context = vm.createContext({audio, Promise, URLSearchParams,
+  const context = vm.createContext({audio, Promise, URLSearchParams, MusicStreamQuality, streamQuality:'raw', QUALITY_KEY:'fixture-quality',
     cfg:{url:'https://library.example.test', user:'example'},
     list:[{id:'1', src:'lib', title:'First', duration:60}, {id:'2', src:'lib', title:'Second', duration:60}],
     idx:-1, playSeq:0, generation:0, playingItem:null, listenSession:null, playback:null, playAttempt:0,
     window:{}, enc:encodeURIComponent, fmtTime:String,
     cur() { return context.playingItem; },
-    $(id) { if (!elements.has(id)) elements.set(id, {style:{}}); return elements.get(id); },
+    $(id) { if (!elements.has(id)) elements.set(id, {style:{},setAttribute(){}}); return elements.get(id); },
+    keyOf:item=>item?item.src+'|'+item.id:'',
     sub(method, params, config) { return config.url + '/' + method + '?' + params; },
     toast(message) { messages.push(message); },
     setPlayIcon() {}, recordPlay() {}, markPlaying() {}, setBackground() {}, loadLyrics() {}, coverOf() {},
@@ -136,12 +138,38 @@ test('an unsupported native format falls back once to MP3 320k in the same liste
   assert.deepEqual(messages, []);
 });
 
-test('unsupported raw and MP3 streams stop after two attempts and report the failure', async () => {
+test('unsupported raw and both MP3 streams stop after three attempts and report the failure', async () => {
   const {context, audio, calls, messages} = load(() => Promise.reject({name:'NotSupportedError'}));
   context.play(0); await flush();
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.equal(audio.paused, true);
   assert.match(messages.at(-1), /音频无法播放/);
+});
+
+test('quality cycles through raw, 320k and 128k while preserving a paused track and its position',()=>{
+  const {context,controls,audio,calls,elements}=load();context.play(0);audio.currentTime=27.5;controls.pause();
+  const expected=['320','128','raw'];
+  for(const quality of expected){
+    context.changeQuality();assert.equal(context.playingItem.id,'1');assert.equal(context.streamQuality,quality);
+    assert.equal(audio.currentTime,27.5);assert.equal(audio.paused,true);assert.equal(calls.length,1);
+    assert.equal(new URL(audio.src).searchParams.get('format'),quality==='raw'?'raw':'mp3');
+    assert.equal(new URL(audio.src).searchParams.get('maxBitRate'),quality==='raw'?null:quality);
+    assert.equal(elements.get('qualityBtn').textContent,quality==='raw'?'RAW':quality+'K');
+  }
+});
+test('quality changes keep the current song even when a different list is visible',()=>{
+  const {context,audio}=load();context.play(0);audio.currentTime=19;context.list=[];context.changeQuality();
+  assert.equal(context.playingItem.id,'1');assert.equal(context.idx,-1);assert.equal(audio.currentTime,19);
+});
+test('quality changes retain the same listen and credit actual playback before reloading',()=>{
+  const {context,audio}=load();context.play(0);const session=context.listenSession;
+  session.reported=true;audio.played={length:1,start:()=>5,end:()=>17};context.changeQuality();
+  assert.equal(context.listenSession,session);assert.equal(session.carried,12);assert.equal(session.reported,true);
+});
+test('the quality label follows an automatic compatibility fallback',async()=>{
+  const {context,elements}=load((audio,count)=>count===1?Promise.reject({name:'NotSupportedError'}):Promise.resolve());
+  context.play(0);await flush();assert.equal(context.streamQuality,'raw');assert.equal(context.playback.quality,'320');
+  assert.equal(elements.get('qualityBtn').textContent,'320K');assert.match(elements.get('qualityBtn').title,/兼容/);
 });
 
 test('a network failure does not trigger a format fallback', () => {

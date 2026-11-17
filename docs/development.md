@@ -54,3 +54,14 @@ at the media-element level. The button and keyboard must toggle playback intent,
 the URL must respect that intent. Search jobs retain their original settings, stop scheduling
 work after a view/account change, and must not autoplay over a later manual choice or pause.
 An unavailable library search must not prevent independently configured plugin searches.
+
+Playback quality defaults to RAW. The button beside the time cycles raw/320/128; library
+requests use `format=raw` or `format=mp3&maxBitRate=…`. A source's lower bitrate must not be
+labelled as a higher bitrate. A decoder fallback updates the displayed mode, while permission
+and network errors retain the selection. Switching retains the current item even outside the
+visible list, its position, paused intent, and listen session without double-counting.
+
+Edit `tools/stream-quality.js`, then run `node tools/sync-quality.cjs` to inline the shared
+implementation. Pass the private build directory as an optional argument to also write its
+`stream-quality.js`. The public HTML stays self-contained; private audio cues and speaker
+MP3 renditions must not override the website's RAW default or enter the public repository.

@@ -307,6 +307,15 @@ body.browsing .seek-cue{display:flex}
   .player{padding:8px 14px 10px}
 }
 @media (max-width:430px){.brand span:last-child{display:none}}
+
+/* Stream quality stays beside the elapsed time without resizing playback controls. */
+.quality-button { display:inline-flex; align-items:center; justify-content:center; min-width:50px; min-height:28px; padding:3px 8px; margin-right:8px; border:1px solid rgba(255,255,255,.28); border-radius:14px; background:rgba(255,255,255,.07); color:inherit; font:600 12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; vertical-align:middle; cursor:pointer; white-space:nowrap; }
+.quality-button:hover { background:rgba(255,255,255,.14); }
+.quality-button:focus-visible { outline:2px solid #9bbcff; outline-offset:2px; }
+.quality-button:disabled { opacity:.65; cursor:default; }
+
+
+.quality-button::after { content:"↻"; margin-left:4px; font-size:11px; opacity:.65; }
 </style>
 </head>
 <body>
@@ -372,7 +381,7 @@ body.browsing .seek-cue{display:flex}
     <div class="pinfo">
       <div class="row">
         <div class="name" id="npName">还没有开始播放</div>
-        <div class="time"><span id="tCur">0:00</span> / <span id="tTot">0:00</span></div>
+        <div class="time"><button type="button" id="qualityBtn" class="quality-button" title="RAW · 原始音频；点击切换音质" aria-label="音质 RAW，点击切换">RAW</button><span id="tCur">0:00</span> / <span id="tTot">0:00</span></div>
       </div>
       <div class="bar" id="bar"><div class="track"><div class="fill" id="fill"></div></div></div>
     </div>
@@ -486,6 +495,46 @@ body.browsing .seek-cue{display:flex}
 </div>
 
 <script id="libraryTools">
+/* BEGIN SHARED STREAM QUALITY */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.MusicStreamQuality = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+  const modes = ['raw', '320', '128'];
+  const normalize = value => modes.includes(String(value)) ? String(value) : 'raw';
+  const next = value => modes[(modes.indexOf(normalize(value)) + 1) % modes.length];
+  const params = value => normalize(value) === 'raw' ? 'format=raw' : 'format=mp3&maxBitRate=' + normalize(value);
+  const fallback = value => normalize(value) === 'raw' ? '320' : normalize(value) === '320' ? '128' : null;
+  function load(key, storage) {
+    try { return normalize((storage || localStorage).getItem(key)); } catch (_) { return 'raw'; }
+  }
+  function save(key, value, storage) {
+    try { (storage || localStorage).setItem(key, normalize(value)); } catch (_) {}
+    return normalize(value);
+  }
+  function status(mode, item, adjustable = true, selected = mode) {
+    mode = normalize(mode); selected = normalize(selected);
+    if (!adjustable) return {label: '源音质', title: '当前来源不支持切换音质', disabled: true};
+    const format = String(item && (item.suffix || item.format || item.contentType) || '').toLowerCase();
+    const sourceRate = Number(item && (item.bitRate || item.quality)) || 0;
+    let label = mode === 'raw' ? 'RAW' : mode + 'K';
+    if (mode !== 'raw' && /mp3|mpeg/.test(format) && sourceRate > 0 && sourceRate < Number(mode)) label = sourceRate + 'K';
+    let title = mode === 'raw' ? 'RAW · 原始音频，不主动转码' : 'MP3 · 最高 ' + mode + ' kbps';
+    if (mode === 'raw' && format) title += ' · ' + format.replace('audio/', '').toUpperCase();
+    if (label !== (mode === 'raw' ? 'RAW' : mode + 'K')) title += ' · 源文件为 ' + sourceRate + ' kbps';
+    if (selected !== mode) title += ' · 兼容模式';
+    return {label, title: title + '；点击切换到 ' + (next(selected) === 'raw' ? 'RAW' : next(selected) + 'K'), disabled: false};
+  }
+  function playedSeconds(ranges) {
+    let seconds = 0;
+    for (let i = 0; ranges && i < ranges.length; i++) seconds += Math.max(0, ranges.end(i) - ranges.start(i));
+    return seconds;
+  }
+  return {modes, normalize, next, params, fallback, load, save, status, playedSeconds};
+});
+/* END SHARED STREAM QUALITY */
 /* BEGIN SHARED BACKGROUND */
 (function (root) {
 'use strict';
@@ -587,7 +636,7 @@ function normalize(songs) {
   }).map(s => ({ src:'lib', id:String(s.id), title:String(s.title || '(无标题)'),
     artist:String(s.artist || ''), album:String(s.album || ''), duration:Number(s.duration) || 0,
     coverArt:s.coverArt, created:s.created, playCount:Math.max(0, Number(s.playCount) || 0),
-    played:s.played || null, genre:String(s.genre || ''), tags:[] }));
+    played:s.played || null, genre:String(s.genre || ''), suffix:s.suffix, contentType:s.contentType, bitRate:Number(s.bitRate) || 0, tags:[] }));
 }
 
 // Reserve all popularity slots before choosing discoveries; never steal a later top-seven slot.
@@ -764,6 +813,8 @@ const CFG_KEY = 'navidrome-tesla.config.v1';
 const DEFAULTS = { url:'', user:'', pass:'', yt:'', aiOn:false, aiUrl:'', aiKey:'', aiModel:'', ext:'', favoriteName:'最爱',
                    voiceOn:false, voiceUrl:'', voiceToken:'' };
 let cfg = Object.assign({}, DEFAULTS);
+const QUALITY_KEY = 'navidrome-tesla.quality.v1';
+let streamQuality = MusicStreamQuality.load(QUALITY_KEY);
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(CFG_KEY) || '{}')); } catch (e) {}
 const saveCfg = () => { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) { toast('浏览器不让保存设置（可能是隐私模式）'); } };
 const configured = () => !!(cfg.url && cfg.user && cfg.pass);
@@ -1132,8 +1183,8 @@ function markPlaying() {
 }
 
 /* ---------- 取流地址 ---------- */
-function streamUrl(it, config = cfg) {
-  if (it.src === 'lib') return sub('stream', 'id=' + enc(it.id) + '&format=raw', config);
+function streamUrl(it, config = cfg, quality = streamQuality) {
+  if (it.src === 'lib') return sub('stream', 'id=' + enc(it.id) + '&' + MusicStreamQuality.params(quality), config);
   if (it.src === 'yt')  return ytStream(it.videoId, undefined, config);
   if (it.src === 'ext') {
     return fetch((config.ext || '').trim().replace(/\/+$/, '') + '/play?' + new URLSearchParams(it.play || { id: it.id }))
@@ -1146,6 +1197,22 @@ function streamUrl(it, config = cfg) {
 }
 
 /* ---------- 播放 ---------- */
+function updateQuality() {
+  const mode = playback && currentPlayback(playback) ? playback.quality : streamQuality;
+  const status = MusicStreamQuality.status(mode, playingItem, !playingItem || playingItem.src === 'lib', streamQuality);
+  const button = $('qualityBtn');
+  button.textContent = status.label; button.title = status.title; button.disabled = status.disabled;
+  button.setAttribute('aria-label', '音质 ' + status.label + '，点击切换');
+}
+function changeQuality() {
+  if (playingItem && playingItem.src !== 'lib') return;
+  streamQuality = MusicStreamQuality.save(QUALITY_KEY, MusicStreamQuality.next(streamQuality));
+  if (playingItem) {
+    const state = playback, paused = state && state.pending ? !state.wantPlay : audio.paused;
+    play(list.findIndex(it => keyOf(it) === keyOf(playingItem)),
+      {item:playingItem, resumeTime:audio.currentTime, wantPlay:!paused, session:listenSession});
+  } else updateQuality();
+}
 function currentPlayback(state) {
   return state === playback && state.seq === playSeq && state.gen === generation;
 }
@@ -1153,9 +1220,11 @@ function playbackFailed(state, error) {
   if (!currentPlayback(state) || !state.wantPlay || (error && error.name === 'AbortError')) return;
   const code = audio.error && audio.error.code;
   const unsupported = (error && error.name === 'NotSupportedError') || code === 3 || code === 4;
-  if (unsupported && state.item.src === 'lib' && !state.fallback) {
-    state.fallback = true;
-    startStream(state, sub('stream', 'id=' + enc(state.item.id) + '&format=mp3&maxBitRate=320', state.config));
+  const lower = MusicStreamQuality.fallback(state.quality);
+  if (unsupported && state.item.src === 'lib' && lower) {
+    state.quality = lower;
+    state.resumeTime = audio.currentTime;
+    startStream(state, streamUrl(state.item, state.config, lower));
     return;
   }
   state.wantPlay = false;
@@ -1181,21 +1250,32 @@ function requestPlayback(state) {
 function startStream(state, url) {
   if (!currentPlayback(state)) return;
   state.pending = false;
+  if (state.session && state.session.src === audio.src) state.session.carried = (state.session.carried || 0) + MusicStreamQuality.playedSeconds(audio.played);
   ++playAttempt; audio.pause(); audio.src = url; audio.load();
   state.src = audio.src;
+  let seekPending = true;
+  const seek = () => {
+    if (!seekPending || !currentPlayback(state) || state.src !== audio.src) return;
+    try { audio.currentTime = Math.max(0, Math.min(Number(state.resumeTime) || 0, Number.isFinite(audio.duration) ? Math.max(0, audio.duration - .05) : Infinity)); seekPending = false; } catch (_) {}
+  };
+  audio.onloadedmetadata = seek;
+  if (audio.readyState >= 1) seek();
+  else { try { audio.currentTime = Number(state.resumeTime) || 0; } catch (_) {} }
   if (state.item.src === 'lib') {
     // A format fallback belongs to the same listen, so it must not count twice.
     state.session = state.session || {item:state.item, started:null, reported:false, config:state.config, gen:state.gen};
     state.session.src = state.src;
     listenSession = state.session;
   }
+  updateQuality();
   if (state.wantPlay) requestPlayback(state);
+  else setPlayIcon(false);
 }
 function resolvePlayback(state) {
   state.pending = true;
   setPlayIcon(state.wantPlay);
   try {
-    const url = streamUrl(state.item, state.config);
+    const url = streamUrl(state.item, state.config, state.quality);
     if (typeof url === 'string') startStream(state, url);
     else Promise.resolve(url).then(url => startStream(state, url)).catch(error => {
       if (!currentPlayback(state)) return;
@@ -1215,12 +1295,16 @@ function resumePlayback() {
   if (!state.src || audio.error) { state.fallback = false; resolvePlayback(state); }
   else requestPlayback(state);
 }
-function play(i) {
-  const it = list[i];
+function play(i, options = {}) {
+  const it = options.item || list[i];
   if (!it) return;
-  recordPlay(); listenSession = null;
+  recordPlay();
+  const session = options.session || null;
+  if (session && session.src === audio.src) session.carried = (session.carried || 0) + MusicStreamQuality.playedSeconds(audio.played);
+  listenSession = null;
   const my = ++playSeq, gen = generation, config = Object.assign({}, cfg);
-  const state = playback = {seq:my, gen, config, item:it, src:'', pending:false, wantPlay:true, fallback:false};
+  const state = playback = {seq:my, gen, config, item:it, src:'', pending:false, wantPlay:options.wantPlay !== false,
+    quality:streamQuality, session, resumeTime:options.resumeTime || 0};
   ++playAttempt; audio.pause(); audio.removeAttribute('src'); audio.load();
   playingItem = it;
   idx = i;
@@ -1250,7 +1334,7 @@ function recordPlay() {
   const session = listenSession, duration = P.dur;
   if (!session || session.reported || !session.started || session.src !== audio.src || !duration) return;
   // played is a union of sections actually heard; seeking and paused time add nothing.
-  if (MusicLibrary.playedSeconds(audio.played) < Math.min(duration / 2, 240)) return;
+  if ((session.carried || 0) + MusicLibrary.playedSeconds(audio.played) < Math.min(duration / 2, 240)) return;
   session.reported = true; // A timeout may have succeeded remotely: do not auto-resubmit.
   subPost('scrobble', [['id', session.item.id], ['time', String(session.started)], ['submission', 'true']], session.config)
     .then(() => subGet('getSong', 'id=' + enc(session.item.id), session.config))
@@ -1744,6 +1828,8 @@ setTimeout(syncSheetMetrics, 600);   // 字体加载完再量一次更准
 
 /* ---------- 交互 ---------- */
 $('btnPlay').addEventListener('click', togglePlayback);
+$('qualityBtn').addEventListener('click', changeQuality);
+updateQuality();
 $('btnNext').addEventListener('click', next);
 $('btnPrev').addEventListener('click', prev);
 $('bar').addEventListener('click', e => {

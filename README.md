@@ -281,10 +281,17 @@ Selecting a track starts playback. Native library tracks request playback direct
 the click, without waiting for a loading event. If the browser blocks playback, the page
 shows a prompt; tap **Play** to retry. The button follows the actual playback state.
 
-When the browser cannot decode the original format, the client requests one MP3 transcode
-from Navidrome at up to 320 kbps. Navidrome must have transcoding configured for this to work.
-Playback permission errors do not trigger transcoding. A failed retry shows an error and
-leaves the controls available to retry or choose another track.
+The quality button beside the playback time cycles **RAW → 320K → 128K** and remembers the
+selection on this device. **RAW is the default** and requests the original audio without
+transcoding. The MP3 modes request a maximum bitrate of 320 or 128 kbps from Navidrome;
+they require working server-side transcoding. A lower-bitrate source is not improved by
+selecting a higher limit. See the [stream API](https://opensubsonic.github.io/docs/endpoints/stream/).
+
+Switching quality keeps the same track, playback position and paused state. It also retains
+the current listen's play-count progress. If the browser cannot decode the chosen stream,
+the client tries the lower compatibility modes and updates the button to the mode in use.
+Playback permission and network errors do not trigger automatic quality changes.
+Sources that do not offer quality selection display **源音质** (source quality) instead.
 
 ## On a phone
 
