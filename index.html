@@ -308,8 +308,11 @@ body.browsing .seek-cue{display:flex}
 }
 @media (max-width:430px){.brand span:last-child{display:none}}
 
-/* Stream quality stays beside the elapsed time without resizing playback controls. */
-.quality-button { display:inline-flex; align-items:center; justify-content:center; min-width:50px; min-height:28px; padding:3px 8px; margin-right:8px; border:1px solid rgba(255,255,255,.28); border-radius:14px; background:rgba(255,255,255,.07); color:inherit; font:600 12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; vertical-align:middle; cursor:pointer; white-space:nowrap; }
+/* Keep quality switching in settings, away from the seek target. */
+.quality-label { margin-right:8px; font-size:12px; opacity:.7; pointer-events:none; }
+.quality-setting { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:10px; }
+.quality-setting label { margin:0; font-size:14px; }
+.quality-button { display:inline-flex; align-items:center; justify-content:center; min-width:80px; min-height:44px; padding:8px 14px; border:1px solid rgba(255,255,255,.28); border-radius:12px; background:rgba(255,255,255,.07); color:inherit; font:600 14px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; cursor:pointer; white-space:nowrap; }
 .quality-button:hover { background:rgba(255,255,255,.14); }
 .quality-button:focus-visible { outline:2px solid #9bbcff; outline-offset:2px; }
 .quality-button:disabled { opacity:.65; cursor:default; }
@@ -381,7 +384,7 @@ body.browsing .seek-cue{display:flex}
     <div class="pinfo">
       <div class="row">
         <div class="name" id="npName">还没有开始播放</div>
-        <div class="time"><button type="button" id="qualityBtn" class="quality-button" title="RAW · 原始音频；点击切换音质" aria-label="音质 RAW，点击切换">RAW</button><span id="tCur">0:00</span> / <span id="tTot">0:00</span></div>
+        <div class="time"><span id="qualityLabel" class="quality-label" title="音质可在齿轮设置中切换">RAW</span><span id="tCur">0:00</span> / <span id="tTot">0:00</span></div>
       </div>
       <div class="bar" id="bar"><div class="track"><div class="fill" id="fill"></div></div></div>
     </div>
@@ -407,6 +410,11 @@ body.browsing .seek-cue{display:flex}
   <div class="sheet">
     <h2>设置</h2>
     <div class="sub">设置保存在这台设备的浏览器里，仅用于连接你配置的服务。</div>
+
+    <div class="group">
+      <div class="quality-setting"><label for="qualityBtn">播放音质</label><button type="button" id="qualityBtn" class="quality-button" title="RAW · 原始音频；点击切换音质" aria-label="音质 RAW，点击切换">RAW</button></div>
+      <p class="hint">RAW / 320K / 128K，点击即切换并保存，无需再点保存。播放条只显示当前音质。</p>
+    </div>
 
     <div class="group">
       <h3>Navidrome 服务器</h3>
@@ -1203,6 +1211,7 @@ function updateQuality() {
   const button = $('qualityBtn');
   button.textContent = status.label; button.title = status.title; button.disabled = status.disabled;
   button.setAttribute('aria-label', '音质 ' + status.label + '，点击切换');
+  $('qualityLabel').textContent = status.label;
 }
 function changeQuality() {
   if (playingItem && playingItem.src !== 'lib') return;

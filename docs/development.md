@@ -55,7 +55,9 @@ the URL must respect that intent. Search jobs retain their original settings, st
 work after a view/account change, and must not autoplay over a later manual choice or pause.
 An unavailable library search must not prevent independently configured plugin searches.
 
-Playback quality defaults to RAW. The button beside the time cycles raw/320/128; library
+Playback quality defaults to RAW. The quality button in settings cycles raw/320/128 immediately and
+persists independently of the connection form. The playback bar's quality label is read-only;
+keep interactive quality controls outside the seek area. Library
 requests use `format=raw` or `format=mp3&maxBitRate=…`. A source's lower bitrate must not be
 labelled as a higher bitrate. A decoder fallback updates the displayed mode, while permission
 and network errors retain the selection. Switching retains the current item even outside the

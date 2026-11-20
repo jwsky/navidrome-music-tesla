@@ -281,8 +281,10 @@ Selecting a track starts playback. Native library tracks request playback direct
 the click, without waiting for a loading event. If the browser blocks playback, the page
 shows a prompt; tap **Play** to retry. The button follows the actual playback state.
 
-The quality button beside the playback time cycles **RAW → 320K → 128K** and remembers the
-selection on this device. **RAW is the default** and requests the original audio without
+Open the gear menu and use **Playback quality (播放音质)** to cycle **RAW → 320K → 128K**.
+Changes take effect immediately and are remembered on this device; no further Save click is
+needed. The playback bar shows the current quality as plain text, keeping the switch away
+from the seek bar. **RAW is the default** and requests the original audio without
 transcoding. The MP3 modes request a maximum bitrate of 320 or 128 kbps from Navidrome;
 they require working server-side transcoding. A lower-bitrate source is not improved by
 selecting a higher limit. See the [stream API](https://opensubsonic.github.io/docs/endpoints/stream/).
